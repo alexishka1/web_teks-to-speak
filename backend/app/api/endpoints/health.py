@@ -9,7 +9,6 @@ Melaporkan:
 
 import shutil
 from datetime import datetime
-from pathlib import Path
 
 from app.config import settings
 from fastapi import APIRouter
@@ -147,6 +146,35 @@ async def health_check():
             "File config id_ID-news_tts-medium.onnx.json tidak ditemukan."
         )
 
+    # Evaluasi engine ketersediaan
+    engine_details = {
+        "piper": {
+            "available": bool(has_any_model),
+            "requires_online": False,
+            "model_present": bool(has_any_model),
+            "primary_model": model_status.get("primary_model"),
+        },
+        "edge": {
+            "available": bool(settings.ONLINE_ENGINES_ENABLED),
+            "requires_online": True,
+            "online_allowed": bool(settings.ONLINE_ENGINES_ENABLED),
+            "api_key_required": False,
+        },
+        "gemini": {
+            "available": bool(settings.ONLINE_ENGINES_ENABLED and settings.GEMINI_API_KEY),
+            "requires_online": True,
+            "online_allowed": bool(settings.ONLINE_ENGINES_ENABLED),
+            "api_key_configured": bool(settings.GEMINI_API_KEY),
+            "model": settings.GEMINI_MODEL,
+        },
+        "remote": {
+            "available": bool(settings.REMOTE_ENGINE_URL),
+            "requires_online": True,
+            "endpoint_configured": bool(settings.REMOTE_ENGINE_URL),
+        },
+    }
+    usable_engines = [k for k, v in engine_details.items() if v["available"]]
+
     return {
         "status": overall_status,
         "app_name": settings.APP_NAME,
@@ -161,6 +189,10 @@ async def health_check():
         "ffmpeg": ffmpeg_status,
         "voices": voice_catalog,
         "default_engine": settings.DEFAULT_ENGINE,
+        "configured_engines": ["piper", "edge", "gemini", "remote"],
+        "usable_engines": usable_engines,
+        "engine_details": engine_details,
+        "online_engines_enabled": settings.ONLINE_ENGINES_ENABLED,
         "remote_available": bool(settings.REMOTE_ENGINE_URL),
         "ai_disclosure_enabled": settings.EMBED_AI_LABEL,
         "warnings": warnings,

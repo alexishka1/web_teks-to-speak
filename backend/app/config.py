@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     DEFAULT_NOISE_W_SCALE: float = 1.0
     DEBUG_ALLOW_FALLBACK_TONE: bool = False
 
+    # Online Engines Configuration (Gemini TTS & Edge TTS)
+    ONLINE_ENGINES_ENABLED: bool = False
+    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_MODEL: str = "gemini-3.8-flash-tts"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

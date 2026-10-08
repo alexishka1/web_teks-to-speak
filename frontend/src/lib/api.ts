@@ -10,6 +10,7 @@ export interface SynthesizePayload {
   sentence_emotions?: string[];
   is_cloned_voice?: boolean;
   voice_clone_consent?: boolean;
+  engine?: string;
 }
 
 export interface SynthesizeResponse {

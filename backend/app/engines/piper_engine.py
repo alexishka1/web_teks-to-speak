@@ -7,7 +7,6 @@ Fitur:
 """
 
 import math
-import os
 import struct
 import time
 import wave
@@ -19,7 +18,7 @@ from app.engines.base import TTSEngine
 
 
 def _allow_fallback() -> bool:
-    return settings.DEBUG_ALLOW_FALLBACK_TONE or bool(os.getenv("PYTEST_CURRENT_TEST"))
+    return bool(settings.DEBUG_ALLOW_FALLBACK_TONE)
 
 
 class PiperEngine(TTSEngine):
@@ -29,7 +28,11 @@ class PiperEngine(TTSEngine):
         self._last_used: dict[str, float] = {}
 
     def is_available(self) -> bool:
-        return True
+        """Piper siap jika model ONNX tersedia di storage/models/."""
+        model_path, _ = self._get_model_paths("id_ID-news_tts-medium")
+        if model_path and model_path.exists():
+            return True
+        return len(list(settings.MODELS_DIR.glob("*.onnx"))) > 0
 
     def _get_model_paths(self, voice_id: str) -> tuple[Path | None, Path | None]:
         """Mencari file .onnx dan .onnx.json di storage/models/."""

@@ -366,6 +366,7 @@ export const useTTSStore = create<TTSState>((set, get) => ({
         sentence_emotions: orderedSentenceEmos.length > 0 ? orderedSentenceEmos : undefined,
         is_cloned_voice: isClonedVoice,
         voice_clone_consent: cloneConsentGiven,
+        engine: get().selectedEngine || undefined,
       };
 
       const progressTimer = setInterval(() => {

@@ -4,7 +4,6 @@ Teks -> Normalisasi -> Lexicon -> Split Kalimat -> Variasi Prosodi +-3-5%
 -> Sintesis per Kalimat -> Equal-Power Crossfade 40ms -> Post-Processing -> Cache.
 """
 
-import random
 import uuid
 from collections.abc import Callable
 from pathlib import Path
@@ -17,6 +16,8 @@ from app.audio.watermark import embed_ai_disclosure_metadata
 from app.config import settings
 from app.emotion.auto_emotion import detect_sentence_emotion
 from app.emotion.presets import calculate_scaled_parameters
+from app.engines.edge_engine import edge_engine
+from app.engines.gemini_engine import gemini_engine
 from app.engines.piper_engine import piper_engine
 from app.engines.remote_engine import remote_engine
 from app.text.lexicon import apply_lexicon_rules
@@ -71,7 +72,18 @@ async def run_synthesis_pipeline(
     import time
 
     pipeline_start_t = time.time()
-    active_engine = engine_name or settings.DEFAULT_ENGINE
+    if engine_name:
+        active_engine = engine_name
+    elif voice_id.startswith("gemini"):
+        active_engine = "gemini"
+    elif voice_id.startswith("edge"):
+        active_engine = "edge"
+    elif voice_id.startswith("remote"):
+        active_engine = "remote"
+    else:
+        active_engine = settings.DEFAULT_ENGINE
+
+    actual_engine_used = active_engine
     cache_meta = f"{active_engine}_{emotion}_{emotion_intensity}_{pause_scale}_{sentence_emotions or ''}"
     cache_key = compute_cache_key(
         text, voice_id, speed, pitch, f"{audio_effect}_{cache_meta}"
@@ -183,35 +195,77 @@ async def run_synthesis_pipeline(
             sent_noise_w_scale = settings.DEFAULT_NOISE_W_SCALE
 
         sent_wav = temp_dir / f"sent_{idx:04d}.wav"
-        if active_engine == "remote":
-            await remote_engine.synthesize(
-                text=sentence,
-                voice_id=voice_id,
-                output_path=sent_wav,
-                speed=sent_speed,
-                pitch=sent_pitch,
-                extra_params={
-                    "emotion": sent_emo_id,
-                    "intensity": emotion_intensity,
-                    "noise_scale": sent_noise_scale,
-                    "noise_w_scale": sent_noise_w_scale,
-                },
-            )
-        else:
-            await piper_engine.synthesize(
-                text=sentence,
-                voice_id=voice_id,
-                output_path=sent_wav,
-                speed=sent_speed,
-                pitch=sent_pitch,
-                extra_params={
-                    "noise_scale": sent_noise_scale,
-                    "noise_w_scale": sent_noise_w_scale,
-                },
-            )
 
-        # Terapkan modulasi pitch emosi per kalimat dengan rentang lembut (-2.5 s/d +2.5 semitones)
-        if abs(sent_pitch) >= 0.2:
+        async def _run_engine_synth(engine_to_use: str, target_voice: str):
+            if engine_to_use == "gemini":
+                return await gemini_engine.synthesize(
+                    text=sentence,
+                    voice_id=target_voice,
+                    output_path=sent_wav,
+                    speed=sent_speed,
+                    pitch=sent_pitch,
+                    extra_params={
+                        "emotion": sent_emo_id,
+                        "intensity": emotion_intensity,
+                    },
+                )
+            elif engine_to_use == "edge":
+                return await edge_engine.synthesize(
+                    text=sentence,
+                    voice_id=target_voice,
+                    output_path=sent_wav,
+                    speed=sent_speed,
+                    pitch=sent_pitch,
+                    extra_params={
+                        "emotion": sent_emo_id,
+                        "intensity": emotion_intensity,
+                    },
+                )
+            elif engine_to_use == "remote":
+                return await remote_engine.synthesize(
+                    text=sentence,
+                    voice_id=target_voice,
+                    output_path=sent_wav,
+                    speed=sent_speed,
+                    pitch=sent_pitch,
+                    extra_params={
+                        "emotion": sent_emo_id,
+                        "intensity": emotion_intensity,
+                        "noise_scale": sent_noise_scale,
+                        "noise_w_scale": sent_noise_w_scale,
+                    },
+                )
+            else:
+                return await piper_engine.synthesize(
+                    text=sentence,
+                    voice_id=target_voice,
+                    output_path=sent_wav,
+                    speed=sent_speed,
+                    pitch=sent_pitch,
+                    extra_params={
+                        "noise_scale": sent_noise_scale,
+                        "noise_w_scale": sent_noise_w_scale,
+                    },
+                )
+
+        try:
+            await _run_engine_synth(active_engine, voice_id)
+        except Exception as primary_err:
+            if active_engine != "piper" and piper_engine.is_available():
+                print(
+                    f"[Pipeline] Engine '{active_engine}' gagal ({primary_err}). "
+                    f"Melakukan fallback otomatis ke Piper ONNX..."
+                )
+                actual_engine_used = "piper"
+                await _run_engine_synth("piper", "id_ID-news_tts-medium")
+            else:
+                raise RuntimeError(
+                    f"Sintesis suara gagal pada engine '{active_engine}': {primary_err}. "
+                    "Fallback lokal Piper tidak tersedia atau dinonaktifkan."
+                ) from primary_err
+
+        # Terapkan modulasi pitch emosi per kalimat jika menggunakan Piper lokal
+        if actual_engine_used == "piper" and abs(sent_pitch) >= 0.2:
             clamped_sent_pitch = max(-2.5, min(2.5, sent_pitch))
             apply_audio_effects_ffmpeg(
                 input_wav=sent_wav,
@@ -281,18 +335,19 @@ async def run_synthesis_pipeline(
             }
         )
 
-    # Deteksi apakah model memiliki file .onnx mandiri fisik di disk
-    has_dedicated_onnx = (
-        (settings.MODELS_DIR / f"{voice_id}.onnx").exists()
+    # Deteksi apakah model adalah model mandiri nyata (Dedicated Model)
+    # Suara dari engine online (Gemini, Edge) dan model ONNX mandiri tidak dimanipulasi dengan FFmpeg pitch/EQ profile hack.
+    is_dedicated_real_voice = (
+        actual_engine_used in ("gemini", "edge")
+        or (settings.MODELS_DIR / f"{voice_id}.onnx").exists()
         or (settings.MODELS_DIR / voice_id / f"{voice_id}.onnx").exists()
     )
 
     profile_pitch = 0.0
     profile_eq = None
 
-    # Jika memakai model shared fallback (hanya satu model id_ID-news_tts-medium di storage),
-    # terapkan profil akustik agar tiap karakter di katalog terdengar khas & berbeda nyata:
-    if not has_dedicated_onnx:
+    # Profil akustik hanya diaplikasikan untuk suara legacy Piper yang berbagi satu model fisik:
+    if not is_dedicated_real_voice and actual_engine_used == "piper":
         v_lower = voice_id.lower()
         if "bima" in v_lower:
             # Bima (Pria Narator): Nada berat berwibawa (-4.8 semitones) + resonansi dada
@@ -382,6 +437,6 @@ async def run_synthesis_pipeline(
         num_sentences=total_sentences,
         is_cached=False,
         sentence_details=sentence_details,
-        engine_used=active_engine,
+        engine_used=actual_engine_used,
         first_sentence_time_ms=first_sentence_time_ms,
     )

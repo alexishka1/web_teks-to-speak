@@ -111,27 +111,33 @@ async def migrate_and_seed_database(session: AsyncSession) -> None:
 
     # 2. Migrasi Suara (Voices)
     v_res = await session.execute(select(VoiceRecord))
-    existing_voices = v_res.scalars().all()
-    if not existing_voices:
-        catalog_voices = get_registered_voices()
-        for v in catalog_voices:
+    existing_voices = {v.id: v for v in v_res.scalars().all()}
+    catalog_voices = get_registered_voices()
+    for v in catalog_voices:
+        v_id = v["id"]
+        if v_id not in existing_voices:
             v_rec = VoiceRecord(
-                id=v["id"],
+                id=v_id,
                 name=v["name"],
                 gender=v.get("gender", "female"),
                 language=v.get("language", "id-ID"),
                 category=v.get("category", "creator"),
                 description=v.get("description", ""),
                 engine=v.get("engine", "piper"),
-                model_path=f"storage/models/{v['id']}.onnx",
-                config_path=f"storage/models/{v['id']}.json",
+                model_path=f"storage/models/{v_id}.onnx" if v.get("engine") == "piper" else None,
+                config_path=f"storage/models/{v_id}.json" if v.get("engine") == "piper" else None,
                 sample_rate=v.get("sample_rate", 22050),
                 is_cloned=v.get("is_cloned", False),
                 is_active=True,
                 created_at=now,
             )
             session.add(v_rec)
-        await session.commit()
+        else:
+            rec = existing_voices[v_id]
+            rec.name = v["name"]
+            rec.engine = v.get("engine", rec.engine)
+            rec.description = v.get("description", rec.description)
+    await session.commit()
 
     # 3. Migrasi Preset Suara (Style Presets)
     p_res = await session.execute(select(StylePresetRecord))

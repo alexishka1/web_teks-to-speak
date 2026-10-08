@@ -178,9 +178,16 @@ async def create_tts_job(
     await _execute_synthesis()
 
     final_info = JOB_PROGRESS.get(job_id, {})
+    if final_info.get("status") == "failed":
+        err_msg = final_info.get("error", "Sintesis audio tidak dapat diselesaikan.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Layanan sintesis audio gagal: {err_msg}",
+        )
+
     return SynthesizeResponse(
         job_id=job_id,
-        status=final_info.get("status", "completed"),
+        status="completed",
         audio_url=f"/api/audio/{job_id}",
         duration_sec=final_info.get("duration_sec", 0.0),
         engine_used=pipeline_result_holder.get("engine_used", chosen_engine),

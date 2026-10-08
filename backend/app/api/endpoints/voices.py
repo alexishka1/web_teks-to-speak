@@ -36,7 +36,8 @@ async def list_voices(db: AsyncSession = Depends(get_db)):
             backed_by=(
                 "dedicated_model"
                 if (
-                    r.id == "id_ID-news_tts-medium"
+                    r.engine in ("gemini", "edge")
+                    or r.id == "id_ID-news_tts-medium"
                     or (settings.MODELS_DIR / f"{r.id}.onnx").exists()
                     or (settings.MODELS_DIR / r.id / f"{r.id}.onnx").exists()
                 )

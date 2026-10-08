@@ -269,6 +269,29 @@ Setiap entri bug wajib mengikuti struktur berikut:
 - **Perbaikan:** Mengubah default `pause_ms = 0` pada `crossfade_pcm`. Jika `pause_ms == 0`, fungsi melakukan overlapping crossfade murni dengan kurva sinus-kosinus; jika `pause_ms > 0`, fungsi menerapkan micro fade-in/fade-out dengan jeda bernafas natural.
 - **Tes Pencegah:** Test `test_equal_power_crossfade_continuity` dan tes sintesis naskah 2000 karakter lulus sempurna.
 
+---
+
+### BUG-022
+- **ID:** BUG-022
+- **Tanggal:** 2026-10-08
+- **Gejala:** Fallback otomatis dari engine online ke Piper ONNX berpotensi mengembalikan cache lama dari engine yang berbeda tanpa mengeksekusi engine yang diminta.
+- **Langkah Reproduksi:** Panggil sintesis dengan `engine="gemini"`, lalu panggil kembali dengan `engine="piper"` untuk teks dan emosi yang sama.
+- **Akar Masalah:** Parameter engine tidak diikutsertakan di dalam metadata hash `compute_cache_key`, sehingga audio cache dapat tertukar antar engine yang berbeda resolusi dan karakternya.
+- **Perbaikan:** Menyertakan `active_engine` secara eksplisit ke dalam string hashing cache (`cache_meta = f"{active_engine}_{emotion}_{emotion_intensity}_{pause_scale}_{sentence_emotions or ''}"`), serta menyertakan nama `actual_engine_used` pada `PipelineResult` agar klien selalu mengetahui engine mana yang menghasilkan audio secara transparan.
+- **Tes Pencegah:** Uji unit `test_engine_selection_and_fallback_to_piper` dan `test_engine_reports_actual_engine_used` di `backend/tests/test_new_engines.py`.
+
+---
+
+### BUG-023
+- **ID:** BUG-023
+- **Tanggal:** 2026-10-08
+- **Gejala:** Kegagalan pengujian upload model kustom pada `test_studio_voice_upload_validation` (`fastapi.exceptions.HTTPException: 400: Uji sintesis kalimat gagal: Gagal memuat model Piper ONNX: 'num_symbols'`).
+- **Langkah Reproduksi:** Jalankan `pytest backend/tests/test_tahap11.py` setelah penghapusan fallback gelombang sinus bawaan dari PiperEngine.
+- **Akar Masalah:** File uji menyuplai byte palsu (`b"mock onnx binary data 12345"`). Sebelumnya tes ini lolos semu karena PiperEngine diam-diam memanggil `_synthesize_fallback()` (gelombang sinus). Saat silent fallback dicabut demi kejujuran sistem, PiperEngine melempar exception valid saat mencoba membaca struktur graph model ONNX palsu.
+- **Perbaikan:** Memasang mock hermetis pada pemanggilan `_test_piper_engine.synthesize` di dalam `test_studio_voice_upload_validation` sehingga uji unit menguji logika upload dan database tanpa membebani runtime engine fisik dengan binary dummy.
+- **Tes Pencegah:** 72 dari 72 test di `backend/tests` lulus 100%.
+
+
 
 
 

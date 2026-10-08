@@ -60,8 +60,11 @@ export function VoiceLibrary() {
     return matchesSearch && matchesCategory;
   });
 
-  const handleSelectVoice = (voiceId: string) => {
-    setSelectedVoiceId(voiceId);
+  const handleSelectVoice = (voice: typeof voices[0]) => {
+    setSelectedVoiceId(voice.id);
+    if (voice.engine) {
+      useTTSStore.getState().setSelectedEngine(voice.engine);
+    }
     stopVoicePreview();
     setActiveTab("tts");
   };
@@ -84,7 +87,7 @@ export function VoiceLibrary() {
               Voice Library Indonesia
             </h1>
             <p className="text-xs text-muted mt-0.5">
-              Koleksi model vokal saraf lokal (Piper ONNX CPU) tanpa API pihak ketiga.
+              Koleksi suara saraf lokal (Piper ONNX CPU) dan engine neural modern (Edge TTS & Gemini Flash).
             </p>
           </div>
 
@@ -174,11 +177,15 @@ export function VoiceLibrary() {
                     <span className="px-1.5 py-0.5 rounded bg-panel border border-border">
                       {voice.sample_rate} Hz
                     </span>
-                    <span className="px-1.5 py-0.5 rounded bg-panel border border-border">
-                      {voice.engine.toUpperCase()} ONNX
+                    <span className="px-1.5 py-0.5 rounded bg-panel border border-border uppercase">
+                      {voice.engine === "edge"
+                        ? "Edge Neural"
+                        : voice.engine === "gemini"
+                        ? "Gemini Studio"
+                        : "Piper ONNX"}
                     </span>
                     <span className="px-1.5 py-0.5 rounded bg-panel border border-border font-sans text-fg">
-                      {voice.backed_by === "dedicated_model" || voice.id === "id_ID-news_tts-medium"
+                      {voice.backed_by === "dedicated_model" || voice.engine !== "piper" || voice.id === "id_ID-news_tts-medium"
                         ? "Model Mandiri"
                         : "Profil Vokal"}
                     </span>
@@ -214,7 +221,7 @@ export function VoiceLibrary() {
                   {/* Use this voice button */}
                   <button
                     type="button"
-                    onClick={() => handleSelectVoice(voice.id)}
+                    onClick={() => handleSelectVoice(voice)}
                     className={`h-8 px-3 text-xs font-semibold rounded-md border transition-colors duration-150 flex items-center justify-center gap-1.5 ${
                       isSelected
                         ? "bg-primary text-primary-fg border-primary"

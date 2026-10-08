@@ -132,8 +132,8 @@ export function ControlPanel() {
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted flex items-center justify-between">
             <span>TTS Engine</span>
-            <span className="text-[10px] font-semibold text-fg px-1.5 py-0.2 rounded border border-border bg-panel">
-              INTEL IRIS READY
+            <span className="text-[10px] font-semibold text-fg px-1.5 py-0.2 rounded border border-border bg-panel uppercase">
+              {selectedEngine === "piper" ? "CPU Offline" : "Online Service"}
             </span>
           </label>
           <div className="grid grid-cols-2 gap-1.5 bg-panel p-1 rounded-md border border-border">
@@ -145,8 +145,33 @@ export function ControlPanel() {
                   ? "bg-primary text-primary-fg shadow-sm"
                   : "text-muted hover:text-fg font-normal"
               }`}
+              title="Sintesis 100% lokal di CPU tanpa koneksi internet"
             >
               <Zap className="w-3.5 h-3.5" strokeWidth={1.5} /> Piper ONNX
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedEngine("edge")}
+              className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+                selectedEngine === "edge"
+                  ? "bg-primary text-primary-fg shadow-sm"
+                  : "text-muted hover:text-fg font-normal"
+              }`}
+              title="Microsoft Edge Neural TTS Bahasa Indonesia (Free Online)"
+            >
+              <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} /> Edge TTS
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedEngine("gemini")}
+              className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+                selectedEngine === "gemini"
+                  ? "bg-primary text-primary-fg shadow-sm"
+                  : "text-muted hover:text-fg font-normal"
+              }`}
+              title="Google Gemini 3.8 Flash TTS dengan natural style instruction"
+            >
+              <Radio className="w-3.5 h-3.5" strokeWidth={1.5} /> Gemini Flash
             </button>
             <button
               type="button"
@@ -156,11 +181,24 @@ export function ControlPanel() {
                   ? "bg-primary text-primary-fg shadow-sm"
                   : "text-muted hover:text-fg font-normal"
               }`}
-              title="Remote GPU (Colab/Kaggle) dengan fallback otomatis ke Piper"
+              title="Remote GPU Worker (Colab/Kaggle)"
             >
-              <Radio className="w-3.5 h-3.5" strokeWidth={1.5} /> Remote GPU
+              <SlidersHorizontal className="w-3.5 h-3.5" strokeWidth={1.5} /> Remote GPU
             </button>
           </div>
+
+          {/* Online Privacy Notice */}
+          {(selectedEngine === "gemini" || selectedEngine === "edge") && (
+            <div className="p-2.5 rounded-md border border-border bg-panel text-[11px] text-muted space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-fg">
+                <AlertCircle className="w-3.5 h-3.5 text-fg shrink-0" strokeWidth={1.5} />
+                <span>Pemberitahuan Privasi Engine Online</span>
+              </div>
+              <p className="leading-relaxed">
+                Naskah teks dikirim ke layanan online ({selectedEngine === "gemini" ? "Google Gemini API" : "Microsoft Edge Online"}). Untuk privasi 100% lokal tanpa jaringan keluar, pilih engine <strong>Piper ONNX</strong>.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* 2. Voice Selection */}
@@ -169,15 +207,21 @@ export function ControlPanel() {
             <span>Karakter Suara ({displayVoices.length})</span>
             <span className="text-[10px] text-muted font-mono">Bahasa Indonesia</span>
           </label>
-          <div id="voice-selection-list" className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+          <div id="voice-selection-list" className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
             {displayVoices.map((v) => {
               const isSelected = selectedVoiceId === v.id;
+              const voiceEngine = v.engine || (v.id.startsWith("gemini_") ? "gemini" : v.id.startsWith("edge_") ? "edge" : "piper");
               return (
                 <button
                   key={v.id}
                   id={`btn-voice-${v.id}`}
                   type="button"
-                  onClick={() => setSelectedVoiceId(v.id)}
+                  onClick={() => {
+                    setSelectedVoiceId(v.id);
+                    if (v.engine) {
+                      setSelectedEngine(v.engine);
+                    }
+                  }}
                   className={`w-full text-left p-2.5 rounded-md border text-xs transition-colors duration-150 ${
                     isSelected
                       ? "bg-panel border-2 border-primary text-fg font-semibold shadow-sm"
@@ -192,13 +236,13 @@ export function ControlPanel() {
                       </span>
                     </span>
                     <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-fg uppercase font-mono font-medium">
+                        {voiceEngine}
+                      </span>
                       <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-muted font-normal">
-                        {v.backed_by === "dedicated_model" || v.id === "id_ID-news_tts-medium"
+                        {v.backed_by === "dedicated_model" || v.id === "id_ID-news_tts-medium" || voiceEngine !== "piper"
                           ? "Model Mandiri"
                           : "Profil Vokal"}
-                      </span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-fg uppercase font-semibold">
-                        {v.category}
                       </span>
                     </div>
                   </div>

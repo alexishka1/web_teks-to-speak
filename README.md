@@ -176,7 +176,10 @@ d:/web_teks-to-speak/
 
 ---
 
-## ⚖️ Kepatuhan Etika AI
-1. **Transparansi:** Seluruh audio yang diproduksi wajib menyertakan metadata label `"Dibuat dengan AI - TaSTP Studio"`.
+## ⚖️ Kepatuhan Etika AI & Privasi
+1. **Transparansi:** Seluruh audio yang diproduksi wajib menyertakan metadata label `"Dibuat dengan AI - TaSTP Studio"` pada format RIFF INFO chunk.
 2. **Kloning Suara Berizin:** Pembuatan klon vokal wajib menyertakan persetujuan tertulis pemilik suara asli melalui checkbox persetujuan yang dicatat ke database audit log.
-3. **Privasi Data:** Seluruh data pemrosesan tersimpan secara lokal tanpa dikirimkan ke server komersial pihak ketiga.
+3. **Privasi & Mode Data:**
+   - **Mode Standar (Piper ONNX):** 100% self-hosted di mesin lokal (CPU). Tidak ada naskah teks atau audio yang dikirimkan ke luar perangkat Anda.
+   - **Mode Online Opsional (Edge TTS & Gemini TTS):** Hanya aktif jika `ONLINE_ENGINES_ENABLED=true` diaktifkan di `backend/.env`. Naskah teks dikirim secara aman ke endpoint resmi penyedia (Microsoft Edge / Google Cloud Gemini). Kunci API (`GEMINI_API_KEY`) hanya disimpan secara privat di `backend/.env` (gitignored).
+   - **Batasan Edge TTS:** Layanan Edge TTS merupakan antarmuka pihak ketiga tanpa SLA resmi. Untuk lingkungan offline dan terisolasi penuh, gunakan Piper ONNX.

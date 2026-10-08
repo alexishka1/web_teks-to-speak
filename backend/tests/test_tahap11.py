@@ -269,6 +269,8 @@ async def test_studio_voice_upload_validation():
         assert "JSON tidak valid" in exc_info_2.value.detail
 
         # Kasus sukses: .onnx + valid .json
+        from unittest.mock import patch
+
         valid_json = json.dumps(
             {"audio": {"sample_rate": 22050}, "language": {"code": "id_ID"}}
         ).encode("utf-8")
@@ -279,16 +281,23 @@ async def test_studio_voice_upload_validation():
         valid_config_file = UploadFile(
             filename="voice_custom_test.json", file=io.BytesIO(valid_json)
         )
-        good_res = await upload_custom_voice_model(
-            model_file=valid_model_file,
-            config_file=valid_config_file,
-            name="Suara Custom Unit Test",
-            gender="female",
-            language="id-ID",
-            category="creator",
-            description="Suara kustom hasil upload Studio Manager",
-            db=session,
-        )
+
+        async def _mock_synth(text, output_path, **kwargs):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_bytes(b"RIFF" + b"\x00" * 200)
+            return 1.5
+
+        with patch("app.api.endpoints.studio._test_piper_engine.synthesize", side_effect=_mock_synth):
+            good_res = await upload_custom_voice_model(
+                model_file=valid_model_file,
+                config_file=valid_config_file,
+                name="Suara Custom Unit Test",
+                gender="female",
+                language="id-ID",
+                category="creator",
+                description="Suara kustom hasil upload Studio Manager",
+                db=session,
+            )
         assert good_res.name == "Suara Custom Unit Test"
         assert good_res.engine == "piper"
         assert good_res.is_active is True

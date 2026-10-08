@@ -27,11 +27,15 @@ TEST_SENTENCE = (
 )
 
 CATALOG_VOICES = [
-    ("id_ID-news_tts-medium", "Ida (Resmi ONNX)"),
-    ("piper_id_gadis_fast", "Gadis (Kreator)"),
-    ("piper_id_bima_narrator", "Bima (Narator Pria)"),
-    ("piper_id_siti_podcast", "Siti (Podcast)"),
-    ("piper_id_dimas_news", "Dimas (Penyiar Pria)"),
+    # Piper Voices (Offline fallback / baseline)
+    ("id_ID-news_tts-medium", "Piper - Ida (Baseline)", "piper"),
+    ("piper_id_bima_narrator", "Piper - Bima (Pitch shifted)", "piper"),
+    # Edge TTS Voices (Online Neural)
+    ("edge_id_ardi", "Edge - Ardi (Neural Pria)", "edge"),
+    ("edge_id_gadis", "Edge - Gadis (Neural Wanita)", "edge"),
+    # Gemini TTS Voices (Online Expressive)
+    ("gemini_kore", "Gemini - Kore (Studio Wanita)", "gemini"),
+    ("gemini_fenrir", "Gemini - Fenrir (Studio Pria)", "gemini"),
 ]
 
 EMOTIONS = [
@@ -120,16 +124,16 @@ async def generate_voice_report(output_dir: Path | None = None):
 
     results = []
 
-    for voice_id, voice_label in CATALOG_VOICES:
+    for voice_id, voice_label, engine_name in CATALOG_VOICES:
         for emo_id, emo_label in EMOTIONS:
             job_id = f"report_{voice_id[:12]}_{emo_id}"
-            out_file = scratch_dir / f"{job_id}.wav"
 
             try:
                 res = await run_synthesis_pipeline(
                     text=TEST_SENTENCE,
                     voice_id=voice_id,
                     emotion=emo_id,
+                    engine_name=engine_name,
                     job_id=job_id,
                 )
                 dur, rms, mean_f0, std_f0 = extract_f0_and_metrics(res.audio_path)

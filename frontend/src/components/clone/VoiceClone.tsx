@@ -482,6 +482,16 @@ export function VoiceClone() {
         </div>
       </div>
 
+      {/* Honest Voice Cloning Architecture Notice */}
+      <div className="p-3.5 rounded-lg border border-border bg-panel text-xs text-muted flex items-start gap-2.5">
+        <Info className="w-4 h-4 text-fg shrink-0 mt-0.5" strokeWidth={1.5} />
+        <div className="leading-relaxed">
+          <span className="font-semibold text-fg">Pemberitahuan Arsitektur Kloning: </span>
+          Engine suara online (Gemini TTS & Edge TTS) saat ini hanya mendukung katalog karakter suara bawaan dan <strong>tidak mendukung</strong> kloning suara kustom dari sampel audio.
+          Kloning suara berbasis rekaman vokal 10–30 detik membutuhkan worker GPU mandiri (RemoteEngine). Pada instalasi lokal tanpa server GPU eksternal, sampel rekaman dan consent log Anda disimpan aman untuk pemetaan profil vokal DSP lokal.
+        </div>
+      </div>
+
       {/* Grid Utama: Panel Kiri (Input & Naskah) & Panel Kanan (A/B Test & Riwayat) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Kolom Kiri: Perekaman / Unggah & Form (7 Kolom) */}
