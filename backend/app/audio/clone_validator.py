@@ -225,6 +225,43 @@ def convert_sample_to_standard_wav(src_path: Path, dest_wav: Path) -> bool:
     return dest_wav.exists()
 
 
+def _is_pcm_wav(file_path: Path) -> bool:
+    """True jika file adalah WAV PCM yang bisa dibaca modul standar `wave`."""
+    try:
+        with wave.open(str(file_path), "rb") as wf:
+            return wf.getframerate() > 0
+    except Exception:
+        return False
+
+
+def decode_to_temp_wav(src_path: Path) -> Path | None:
+    """
+    Decode audio apa pun (WebM/Opus dari browser, MP3, M4A, dll) ke WAV PCM mono 24 kHz.
+    Rekaman MediaRecorder Chrome tidak punya metadata durasi, sehingga durasi
+    harus dibaca dari audio hasil decode, bukan dari header container.
+    """
+    ffmpeg_exe = get_ffmpeg_executable()
+    if not ffmpeg_exe:
+        return None
+    out_path = src_path.with_name(f"{src_path.stem}.decoded.wav")
+    try:
+        res = subprocess.run(
+            [
+                ffmpeg_exe, "-y", "-i", str(src_path),
+                "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", str(out_path),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=60,
+        )
+        if res.returncode == 0 and out_path.exists() and out_path.stat().st_size > 44:
+            return out_path
+    except Exception:
+        pass
+    out_path.unlink(missing_ok=True)
+    return None
+
+
 def validate_clone_sample(audio_path: Path) -> dict[str, Any]:
     """
     Memvalidasi seluruh kriteria sampel audio untuk voice clone:
@@ -240,7 +277,6 @@ def validate_clone_sample(audio_path: Path) -> dict[str, Any]:
             "error": "File sampel audio tidak ditemukan di server.",
         }
 
-    # Validasi ukuran file
     file_size = audio_path.stat().st_size
     if file_size > MAX_UPLOAD_SIZE_BYTES:
         max_mb = MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)
@@ -250,42 +286,54 @@ def validate_clone_sample(audio_path: Path) -> dict[str, Any]:
             "error": f"Ukuran file audio ({file_size / (1024 * 1024):.1f} MB) melebihi batas maksimum {max_mb} MB.",
         }
 
-    dur = get_audio_duration(audio_path)
-    if dur <= 0.0:
-        return {
-            "valid": False,
-            "duration_sec": 0.0,
-            "error": "Format file audio tidak valid atau durasi tidak dapat dibaca.",
-        }
+    # Non-WAV (mis. rekaman browser WebM/Opus) -> decode ke WAV PCM dulu
+    work_path = audio_path
+    decoded_path: Path | None = None
+    if not _is_pcm_wav(audio_path):
+        decoded_path = decode_to_temp_wav(audio_path)
+        if decoded_path is not None:
+            work_path = decoded_path
 
-    if dur < MIN_SAMPLE_DURATION:
+    try:
+        dur = get_audio_duration(work_path)
+        if dur <= 0.0:
+            return {
+                "valid": False,
+                "duration_sec": 0.0,
+                "error": "Format file audio tidak valid atau durasi tidak dapat dibaca. Pastikan FFmpeg terpasang di server.",
+            }
+
+        if dur < MIN_SAMPLE_DURATION:
+            return {
+                "valid": False,
+                "duration_sec": round(dur, 2),
+                "error": f"Durasi sampel audio terlalu pendek ({dur:.1f} detik). Sampel suara kloning wajib minimal 10 detik agar pola vokal dikenali.",
+            }
+
+        if dur > MAX_SAMPLE_DURATION:
+            return {
+                "valid": False,
+                "duration_sec": round(dur, 2),
+                "error": f"Durasi sampel audio terlalu panjang ({dur:.1f} detik). Maksimal durasi sampel suara kloning adalah 30 detik.",
+            }
+
+        is_silent, rms = check_audio_energy_and_silence(work_path)
+        if is_silent:
+            return {
+                "valid": False,
+                "duration_sec": round(dur, 2),
+                "error": "Sampel audio hening atau tidak terdeteksi suara vokal manusia.",
+            }
+
+        quality_info = analyze_audio_quality(work_path)
+
         return {
-            "valid": False,
+            "valid": True,
             "duration_sec": round(dur, 2),
-            "error": f"Durasi sampel audio terlalu pendek ({dur:.1f} detik). Sampel suara kloning wajib minimal 10 detik agar pola vokal dikenali.",
+            "rms": round(rms, 2),
+            "quality": quality_info,
+            "error": None,
         }
-
-    if dur > MAX_SAMPLE_DURATION:
-        return {
-            "valid": False,
-            "duration_sec": round(dur, 2),
-            "error": f"Durasi sampel audio terlalu panjang ({dur:.1f} detik). Maksimal durasi sampel suara kloning adalah 30 detik.",
-        }
-
-    is_silent, rms = check_audio_energy_and_silence(audio_path)
-    if is_silent:
-        return {
-            "valid": False,
-            "duration_sec": round(dur, 2),
-            "error": "Sampel audio hening atau tidak terdeteksi suara vokal manusia.",
-        }
-
-    quality_info = analyze_audio_quality(audio_path)
-
-    return {
-        "valid": True,
-        "duration_sec": round(dur, 2),
-        "rms": round(rms, 2),
-        "quality": quality_info,
-        "error": None,
-    }
+    finally:
+        if decoded_path is not None:
+            decoded_path.unlink(missing_ok=True)
