@@ -1,0 +1,35 @@
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+exclude = [
+    ".git",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "node_modules",
+    "backend/storage",
+    "storage",
+    "frontend",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",  # Line too long
+    "E402",  # Module level import not at top of file (needed for sys.path insertions)
+    "F403",  # star imports where appropriate
+]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+exclude = ["frontend", "storage", ".pytest_cache", "node_modules"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+asyncio_mode = "strict"

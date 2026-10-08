@@ -1,0 +1,14 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+sqlalchemy>=2.0.30
+aiosqlite>=0.20.0
+python-multipart>=0.0.20
+pydub>=0.25.1
+httpx>=0.28.0
+numpy>=1.24.0
+piper-tts>=1.2.0; platform_system != "Darwin" or platform_machine != "arm64"
+imageio-ffmpeg>=0.5.0
+pytest-asyncio>=0.23.0
+greenlet>=3.0.0

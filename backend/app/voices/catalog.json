@@ -1,0 +1,57 @@
+[
+  {
+    "id": "id_ID-news_tts-medium",
+    "name": "Ida - Berita & Narasi Resmi (Piper ONNX)",
+    "gender": "female",
+    "language": "id-ID",
+    "category": "news",
+    "description": "Model saraf Piper Indonesia resmi dari Rhasspy. Artikulasi jernih dan akurat untuk berita & edukasi.",
+    "engine": "piper",
+    "sample_rate": 22050,
+    "is_cloned": false
+  },
+  {
+    "id": "piper_id_gadis_fast",
+    "name": "Gadis - Kreator Energik",
+    "gender": "female",
+    "language": "id-ID",
+    "category": "creator",
+    "description": "Suara wanita muda ceria & ekspresif, pas untuk video pendek TikTok & Reels.",
+    "engine": "piper",
+    "sample_rate": 22050,
+    "is_cloned": false
+  },
+  {
+    "id": "piper_id_bima_narrator",
+    "name": "Bima - Narator Hangat",
+    "gender": "male",
+    "language": "id-ID",
+    "category": "narrator",
+    "description": "Vokal pria tenang, berwibawa, cocok untuk narasi dokumenter & YouTube video essay.",
+    "engine": "piper",
+    "sample_rate": 22050,
+    "is_cloned": false
+  },
+  {
+    "id": "piper_id_siti_podcast",
+    "name": "Siti - Teman Cerita Podcast",
+    "gender": "female",
+    "language": "id-ID",
+    "category": "podcast",
+    "description": "Tutur kata luwes dan natural, ideal untuk obrolan santai atau siniar inspiratif.",
+    "engine": "piper",
+    "sample_rate": 22050,
+    "is_cloned": false
+  },
+  {
+    "id": "piper_id_dimas_news",
+    "name": "Dimas - Penyiar Berita",
+    "gender": "male",
+    "language": "id-ID",
+    "category": "news",
+    "description": "Artikulasi lugas dan tegas untuk video edukasi, tutorial, atau rangkuman kabar harian.",
+    "engine": "piper",
+    "sample_rate": 22050,
+    "is_cloned": false
+  }
+]

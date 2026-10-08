@@ -1,0 +1,42 @@
+﻿# Node & Next.js
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Python & Virtualenv
+__pycache__/
+*.py[cod]
+*.class
+*.so
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# SQLite & Large Models / Audio Storage
+backend/storage/*.db
+backend/storage/*.db-journal
+backend/storage/audio/*.wav
+backend/storage/audio/*.mp3
+backend/storage/audio/cache/
+backend/storage/audio/temp/
+*.onnx
+!backend/storage/models/.gitkeep
+!backend/storage/audio/.gitkeep
+
+# OS & Logs
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
