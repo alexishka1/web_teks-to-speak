@@ -50,10 +50,13 @@ class Settings(BaseSettings):
 
     # Online Engines Configuration (Gemini TTS & Edge TTS)
     ONLINE_ENGINES_ENABLED: bool = False
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.8-flash-tts"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=[str(BASE_DIR / ".env"), ".env"],
+        extra="ignore",
+    )
 
 
 settings = Settings()
