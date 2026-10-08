@@ -23,7 +23,7 @@ def compute_cache_key(
 ) -> str:
     """Menghitung hash SHA-256 unik untuk parameter sintesis."""
     raw_payload = (
-        f"v3_{text.strip()}_{voice_id}_{speed:.3f}_{pitch:.3f}_{audio_effect}".encode()
+        f"v4_{text.strip()}_{voice_id}_{speed:.3f}_{pitch:.3f}_{audio_effect}".encode()
     )
     return hashlib.sha256(raw_payload).hexdigest()
 

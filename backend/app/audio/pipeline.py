@@ -191,8 +191,8 @@ async def run_synthesis_pipeline(
                 "index": idx,
                 "text": sentence,
                 "emotion": sent_emo_id,
-                "speed": jitter_speed,
-                "pitch": jitter_pitch,
+                "speed": sent_speed,
+                "pitch": sent_pitch,
                 "color": emo_params["color"],
             }
         )

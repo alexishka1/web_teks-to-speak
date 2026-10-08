@@ -90,7 +90,12 @@ class PiperEngine(TTSEngine):
                     f"[PiperEngine] Gagal memuat PiperVoice: {e}. Menggunakan fallback."
                 )
 
-        # Tandai sebagai loaded fallback
+        # Tandai sebagai loaded fallback — LOG LOUD WARNING
+        print(
+            f"[PiperEngine] ⚠️  PERINGATAN: Model ONNX untuk '{voice_id}' TIDAK DITEMUKAN! "
+            f"Menggunakan fallback sintetis (suara robotik). "
+            f"Download model: python scripts/download_model.py"
+        )
         self._loaded_voices[voice_id] = "fallback_generator"
 
     async def unload_model(self, voice_id: str) -> None:
