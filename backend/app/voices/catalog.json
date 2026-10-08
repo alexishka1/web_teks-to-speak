@@ -8,7 +8,8 @@
     "description": "Model saraf Piper Indonesia resmi dari Rhasspy. Artikulasi jernih dan akurat untuk berita & edukasi.",
     "engine": "piper",
     "sample_rate": 22050,
-    "is_cloned": false
+    "is_cloned": false,
+    "backed_by": "dedicated_model"
   },
   {
     "id": "piper_id_gadis_fast",
@@ -19,7 +20,8 @@
     "description": "Suara wanita muda ceria & ekspresif, pas untuk video pendek TikTok & Reels.",
     "engine": "piper",
     "sample_rate": 22050,
-    "is_cloned": false
+    "is_cloned": false,
+    "backed_by": "profile_of_shared_model"
   },
   {
     "id": "piper_id_bima_narrator",
@@ -30,7 +32,8 @@
     "description": "Vokal pria tenang, berwibawa, cocok untuk narasi dokumenter & YouTube video essay.",
     "engine": "piper",
     "sample_rate": 22050,
-    "is_cloned": false
+    "is_cloned": false,
+    "backed_by": "profile_of_shared_model"
   },
   {
     "id": "piper_id_siti_podcast",
@@ -41,7 +44,8 @@
     "description": "Tutur kata luwes dan natural, ideal untuk obrolan santai atau siniar inspiratif.",
     "engine": "piper",
     "sample_rate": 22050,
-    "is_cloned": false
+    "is_cloned": false,
+    "backed_by": "profile_of_shared_model"
   },
   {
     "id": "piper_id_dimas_news",
@@ -52,6 +56,7 @@
     "description": "Artikulasi lugas dan tegas untuk video edukasi, tutorial, atau rangkuman kabar harian.",
     "engine": "piper",
     "sample_rate": 22050,
-    "is_cloned": false
+    "is_cloned": false,
+    "backed_by": "profile_of_shared_model"
   }
 ]

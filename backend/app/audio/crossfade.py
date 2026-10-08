@@ -45,14 +45,13 @@ def write_wav_pcm16(output_path: Path, samples: list[int], sample_rate: int = 22
 def crossfade_pcm(
     chunks_samples: list[list[int]],
     crossfade_ms: int = 20,
-    pause_ms: int = 250,
+    pause_ms: int = 0,
     sample_rate: int = 22050,
 ) -> list[int]:
     """
     Menggabungkan potongan kalimat audio PCM dengan:
-    1. Micro fade-out halus (15-20ms) di ujung kalimat untuk mencegah letupan (clicks/pops).
-    2. Jeda hening bernafas natural antar kalimat (pause_ms, default 250ms).
-    3. Micro fade-in halus (15-20ms) di awal kalimat berikutnya.
+    1. Equal-power overlapping crossfade jika pause_ms == 0.
+    2. Micro fade-out halus + jeda hening (pause_ms) + micro fade-in jika pause_ms > 0.
     """
     if not chunks_samples:
         return []
@@ -60,8 +59,29 @@ def crossfade_pcm(
         return chunks_samples[0]
 
     fade_samples = max(1, int((crossfade_ms / 1000.0) * sample_rate))
-    pause_samples = [0] * max(0, int((pause_ms / 1000.0) * sample_rate))
 
+    # Mode 1: Equal-power overlapping crossfade (tanpa pause)
+    if pause_ms == 0:
+        result = list(chunks_samples[0])
+        for next_chunk in chunks_samples[1:]:
+            if not next_chunk:
+                continue
+            overlap = min(fade_samples, len(result), len(next_chunk))
+            if overlap == 0:
+                result.extend(next_chunk)
+                continue
+            overlap_part = []
+            for j in range(overlap):
+                theta = (j / float(overlap)) * (math.pi / 2.0)
+                wa = math.cos(theta)
+                wb = math.sin(theta)
+                val = int(result[-overlap + j] * wa + next_chunk[j] * wb)
+                overlap_part.append(max(-32768, min(32767, val)))
+            result = result[:-overlap] + overlap_part + list(next_chunk[overlap:])
+        return result
+
+    # Mode 2: Micro fade + pause inter-sentence
+    pause_samples = [0] * max(0, int((pause_ms / 1000.0) * sample_rate))
     result: list[int] = []
 
     for idx, chunk in enumerate(chunks_samples):

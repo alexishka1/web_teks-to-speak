@@ -1,3 +1,4 @@
+from app.config import settings
 from app.database import get_db
 from app.models.schema import VoiceDTO, VoiceRecord
 from app.voices.registry import get_registered_voices
@@ -32,6 +33,15 @@ async def list_voices(db: AsyncSession = Depends(get_db)):
             is_cloned=r.is_cloned,
             is_active=r.is_active,
             preview_url=r.preview_audio_url,
+            backed_by=(
+                "dedicated_model"
+                if (
+                    r.id == "id_ID-news_tts-medium"
+                    or (settings.MODELS_DIR / f"{r.id}.onnx").exists()
+                    or (settings.MODELS_DIR / r.id / f"{r.id}.onnx").exists()
+                )
+                else "profile_of_shared_model"
+            ),
         )
         for r in records
     ]

@@ -211,6 +211,65 @@ Setiap entri bug wajib mengikuti struktur berikut:
   3. Menjalankan ulang server Next.js dev secara bersih (`npm run dev`).
 - **Tes Pencegah:** Verifikasi HTTP 200 pada request file stylesheet `layout.css` (51.503 bytes) dan inspeksi screenshot Chromium Playwright membuktikan seluruh tampilan dark mode ter-render sempurna.
 
+---
+
+### BUG-017
+- **ID:** BUG-017
+- **Tanggal:** 2026-10-08
+- **Gejala:** `NameError: name 'jitter_speed' is not defined` / `ruff F821` pada `backend/app/audio/pipeline.py`.
+- **Langkah Reproduksi:** Jalankan `ruff check --select F821 backend/app` atau picu sintesis kalimat multi-prosodi.
+- **Akar Masalah:** Variabel lama `jitter_speed` dan `jitter_pitch` belum didefinisikan di dalam perulangan kalimat setelah refactoring stabilisasi parameter emosi.
+- **Perbaikan:** Mengganti referensi variabel ke `sent_speed` dan `sent_pitch` yang terkalibrasi secara deterministik dari preset emosi.
+- **Tes Pencegah:** `ruff check --select F821 backend/app` dijalankan di CI lint pipeline tanpa error F821.
+
+---
+
+### BUG-018
+- **ID:** BUG-018
+- **Tanggal:** 2026-10-08
+- **Gejala:** Audio terdengar seperti nada dengung sintetis monoton (sine wave 125 Hz/195 Hz) tanpa suara manusia asli saat model ONNX tidak ditemukan.
+- **Langkah Reproduksi:** Hapus file `.onnx` dari `backend/storage/models/` lalu panggil endpoint `/api/tts`.
+- **Akar Masalah:** `PiperEngine._synthesize_fallback()` secara diam-diam (*silent fallback*) menghasilkan gelombang sinus daripada melaporkan ketiadaan model saraf ONNX ke pengguna.
+- **Perbaikan:** Menghapus fallback diam-diam. Sistem kini melempar exception keras `FileNotFoundError` dan mengembalikan HTTP 503 dengan instruksi unduh model yang jelas, kecuali jika `settings.DEBUG_ALLOW_FALLBACK_TONE` diaktifkan secara eksplisit.
+- **Tes Pencegah:** Verifikasi `/health` endpoint memvalidasi keberadaan model fisik dan pipeline menolak sintesis tanpa file ONNX valid.
+
+---
+
+### BUG-019
+- **ID:** BUG-019
+- **Tanggal:** 2026-10-08
+- **Gejala:** Variasi preset emosi (gembira, sedih, marah) tidak mengubah warna suara, nada suara terdengar seragam dan datar.
+- **Langkah Reproduksi:** Sintesis teks dengan emosi `gembira` dan bandingkan dengan `sedih`; spektrum frekuensi F0 dan intonasi vokal hampir identik.
+- **Akar Masalah:** Piper ONNX murni hanya menerima parameter `length_scale`. Parameter `pitch` dari emosi diabaikan oleh engine, `pause_scale` tertimpa slider global, dan `noise_scale` / `noise_w_scale` tidak pernah dikirim ke `SynthesisConfig`.
+- **Perbaikan:**
+  1. Menambahkan eksposur `noise_scale` dan `noise_w_scale` pada `SynthesisConfig` PiperEngine serta memetakannya secara dinamis berdasarkan emosi (mis. gembira = noise_scale 0.88, noise_w_scale 1.15; sedih = 0.65 / 0.75).
+  2. Menerapkan modulasi pitch lembut (-2.5 s/d +2.5 semitones) per kalimat via FFmpeg sebelum penggabungan audio.
+  3. Mengalikan `pause_scale` emosi ke jeda inter-kalimat dan menerapkan efek akustik emosi ketika efek global bernilai "none".
+- **Tes Pencegah:** Skrip `scripts/voice_report.py` memvalidasi perbedaan objektif Mean F0 dan Std F0 antar emosi (Std F0 meningkat hingga ±107.6 Hz pada emosi marah).
+
+---
+
+### BUG-020
+- **ID:** BUG-020
+- **Tanggal:** 2026-10-08
+- **Gejala:** Kegagalan pengujian unit `test_lexicon_in_memory_default_rules` di `backend/tests/test_text.py` (`AssertionError: assert 'yu-tyub' in ...`).
+- **Langkah Reproduksi:** Jalankan `pytest backend/tests/test_text.py`.
+- **Akar Masalah:** Nilai transliterasi di `DEFAULT_LEXICON` menggunakan format tanpa tanda hubung (`"yutyub"`, `"tiktok"`, `"podkes"`) sedangkan assertion tes mengharuskan pelafalan berpemisah suku kata fonetik (`"yu-tyub"`, `"tik-tok"`, `"pod-kes"`).
+- **Perbaikan:** Menyesuaikan entri default di `DEFAULT_LEXICON` pada `backend/app/text/lexicon.py` menjadi bentuk bersuku kata fonetik standar.
+- **Tes Pencegah:** Seluruh 39 uji coba modul pemrosesan teks lulus 100%.
+
+---
+
+### BUG-021
+- **ID:** BUG-021
+- **Tanggal:** 2026-10-08
+- **Gejala:** `AssertionError: assert 9512 == 3118` pada `test_equal_power_crossfade_continuity`.
+- **Langkah Reproduksi:** Jalankan `pytest backend/tests/test_pipeline_tahap4.py::test_equal_power_crossfade_continuity`.
+- **Akar Masalah:** Fungsi `crossfade_pcm` menyematkan parameter default `pause_ms = 250` yang menyisipkan sampel jeda hening antar chunk alih-alih melakukan overlapping crossfade bertenaga seimbang (*equal-power crossfade*).
+- **Perbaikan:** Mengubah default `pause_ms = 0` pada `crossfade_pcm`. Jika `pause_ms == 0`, fungsi melakukan overlapping crossfade murni dengan kurva sinus-kosinus; jika `pause_ms > 0`, fungsi menerapkan micro fade-in/fade-out dengan jeda bernafas natural.
+- **Tes Pencegah:** Test `test_equal_power_crossfade_continuity` dan tes sintesis naskah 2000 karakter lulus sempurna.
+
+
 
 
 

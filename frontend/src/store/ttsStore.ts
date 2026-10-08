@@ -20,6 +20,7 @@ export interface Voice {
   engine: string;
   sample_rate: number;
   is_cloned?: boolean;
+  backed_by?: string;
 }
 
 export type ActiveTab = "tts" | "library" | "clone" | "projects" | "history" | "playground" | "studio";

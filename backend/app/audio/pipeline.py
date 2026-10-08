@@ -164,6 +164,24 @@ async def run_synthesis_pipeline(
         sent_speed = emo_params["speed"]
         sent_pitch = emo_params["pitch"]
 
+        # Pemetaan emosi ke dinamika prosodi & intonasi (noise_scale & noise_w_scale)
+        emo_id_lower = sent_emo_id.lower()
+        if any(k in emo_id_lower for k in ["gembira", "happy", "semangat", "antusias"]):
+            sent_noise_scale = 0.88
+            sent_noise_w_scale = 1.15
+        elif any(k in emo_id_lower for k in ["sedih", "sad", "somber"]):
+            sent_noise_scale = 0.65
+            sent_noise_w_scale = 0.75
+        elif any(k in emo_id_lower for k in ["marah", "angry"]):
+            sent_noise_scale = 0.95
+            sent_noise_w_scale = 1.10
+        elif any(k in emo_id_lower for k in ["tenang", "calm", "bisik", "whisper"]):
+            sent_noise_scale = 0.70
+            sent_noise_w_scale = 0.85
+        else:
+            sent_noise_scale = settings.DEFAULT_NOISE_SCALE
+            sent_noise_w_scale = settings.DEFAULT_NOISE_W_SCALE
+
         sent_wav = temp_dir / f"sent_{idx:04d}.wav"
         if active_engine == "remote":
             await remote_engine.synthesize(
@@ -172,7 +190,12 @@ async def run_synthesis_pipeline(
                 output_path=sent_wav,
                 speed=sent_speed,
                 pitch=sent_pitch,
-                extra_params={"emotion": sent_emo_id, "intensity": emotion_intensity},
+                extra_params={
+                    "emotion": sent_emo_id,
+                    "intensity": emotion_intensity,
+                    "noise_scale": sent_noise_scale,
+                    "noise_w_scale": sent_noise_w_scale,
+                },
             )
         else:
             await piper_engine.synthesize(
@@ -181,7 +204,24 @@ async def run_synthesis_pipeline(
                 output_path=sent_wav,
                 speed=sent_speed,
                 pitch=sent_pitch,
+                extra_params={
+                    "noise_scale": sent_noise_scale,
+                    "noise_w_scale": sent_noise_w_scale,
+                },
             )
+
+        # Terapkan modulasi pitch emosi per kalimat dengan rentang lembut (-2.5 s/d +2.5 semitones)
+        if abs(sent_pitch) >= 0.2:
+            clamped_sent_pitch = max(-2.5, min(2.5, sent_pitch))
+            apply_audio_effects_ffmpeg(
+                input_wav=sent_wav,
+                output_wav=sent_wav,
+                pitch_semitones=clamped_sent_pitch,
+                normalize_lufs=False,
+                apply_deesser=False,
+                sample_rate=22050,
+            )
+
         sentence_wavs.append(sent_wav)
         if idx == 0:
             first_sentence_time_ms = round((time.time() - pipeline_start_t) * 1000, 1)
@@ -220,7 +260,9 @@ async def run_synthesis_pipeline(
         )
 
     raw_output_wav = temp_dir / f"merged_{job_id}.wav"
-    natural_pause_ms = int(260 * max(0.2, min(3.0, pause_scale)))
+    # Gabungkan pause_scale umum dengan pause_scale dari emosi
+    effective_pause_scale = pause_scale * emo_params.get("pause_scale", 1.0)
+    natural_pause_ms = int(260 * max(0.2, min(3.0, effective_pause_scale)))
     merge_wav_files_with_crossfade(
         sentence_wavs,
         raw_output_wav,
@@ -280,11 +322,18 @@ async def run_synthesis_pipeline(
     # Total nada = profil karakter bawaan + setelan slider pengguna (-5 s/d +5)
     total_pitch = profile_pitch + pitch
 
+    # Efek akustik: gunakan pilihan pengguna jika disetel; jika "none", gunakan efek dari emosi jika ada
+    effective_effect = (
+        audio_effect
+        if audio_effect and audio_effect != "none"
+        else emo_params.get("effect", "none")
+    )
+
     final_output_wav = settings.AUDIO_OUTPUT_DIR / f"{job_id}.wav"
     apply_audio_effects_ffmpeg(
         input_wav=raw_output_wav,
         output_wav=final_output_wav,
-        effect=audio_effect,
+        effect=effective_effect,
         normalize_lufs=True,
         apply_deesser=True,
         pitch_semitones=total_pitch,

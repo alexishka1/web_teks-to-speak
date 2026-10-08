@@ -177,6 +177,11 @@ export function VoiceLibrary() {
                     <span className="px-1.5 py-0.5 rounded bg-panel border border-border">
                       {voice.engine.toUpperCase()} ONNX
                     </span>
+                    <span className="px-1.5 py-0.5 rounded bg-panel border border-border font-sans text-fg">
+                      {voice.backed_by === "dedicated_model" || voice.id === "id_ID-news_tts-medium"
+                        ? "Model Mandiri"
+                        : "Profil Vokal"}
+                    </span>
                   </div>
                 </div>
 

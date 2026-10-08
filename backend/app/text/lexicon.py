@@ -14,9 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 # Kamus bawaan untuk istilah kreator konten digital & teknologi
 DEFAULT_LEXICON: dict[str, str] = {
-    "YouTube": "yutyub",
-    "TikTok": "tiktok",
-    "Podcast": "podkes",
+    "YouTube": "yu-tyub",
+    "TikTok": "tik-tok",
+    "Podcast": "pod-kes",
     "Content Creator": "konten kreator",
     "Voiceover": "vois over",
     "Reels": "rils",

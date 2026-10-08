@@ -159,6 +159,7 @@ class VoiceDTO(BaseModel):
     is_cloned: bool = False
     is_active: bool = True
     preview_url: str | None = None
+    backed_by: str = "dedicated_model"  # dedicated_model | profile_of_shared_model
 
 
 class VoiceCreate(BaseModel):

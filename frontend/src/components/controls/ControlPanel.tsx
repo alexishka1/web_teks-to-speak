@@ -191,9 +191,16 @@ export function ControlPanel() {
                         ({v.gender === "female" || v.gender === "Wanita" ? "Wanita" : "Pria"})
                       </span>
                     </span>
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-fg uppercase font-semibold shrink-0">
-                      {v.category}
-                    </span>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-muted font-normal">
+                        {v.backed_by === "dedicated_model" || v.id === "id_ID-news_tts-medium"
+                          ? "Model Mandiri"
+                          : "Profil Vokal"}
+                      </span>
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-fg uppercase font-semibold">
+                        {v.category}
+                      </span>
+                    </div>
                   </div>
                 </button>
               );

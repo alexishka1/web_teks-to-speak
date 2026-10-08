@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     EMBED_AI_LABEL: bool = True
     AI_LABEL_TEXT: str = "Dibuat dengan AI - TaSTP Studio"
 
+    # Piper Intonation & Fallback Guardrails
+    DEFAULT_NOISE_SCALE: float = 0.85
+    DEFAULT_NOISE_W_SCALE: float = 1.0
+    DEBUG_ALLOW_FALLBACK_TONE: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

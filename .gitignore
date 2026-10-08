@@ -1,4 +1,4 @@
-﻿# Node & Next.js
+# Node & Next.js
 node_modules/
 .next/
 out/
@@ -25,10 +25,15 @@ venv.bak/
 # SQLite & Large Models / Audio Storage
 backend/storage/*.db
 backend/storage/*.db-journal
+backend/storage/audio/**/*.wav
+backend/storage/audio/**/*.mp3
 backend/storage/audio/*.wav
 backend/storage/audio/*.mp3
 backend/storage/audio/cache/
 backend/storage/audio/temp/
+backend/storage/audio/clones/
+backend/storage/audio/tests_tahap7/
+scratch/
 *.onnx
 !backend/storage/models/.gitkeep
 !backend/storage/audio/.gitkeep

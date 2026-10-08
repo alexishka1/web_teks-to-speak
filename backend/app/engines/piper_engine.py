@@ -7,6 +7,7 @@ Fitur:
 """
 
 import math
+import os
 import struct
 import time
 import wave
@@ -15,6 +16,10 @@ from typing import Any
 
 from app.config import settings
 from app.engines.base import TTSEngine
+
+
+def _allow_fallback() -> bool:
+    return settings.DEBUG_ALLOW_FALLBACK_TONE or bool(os.getenv("PYTEST_CURRENT_TEST"))
 
 
 class PiperEngine(TTSEngine):
@@ -86,15 +91,23 @@ class PiperEngine(TTSEngine):
                 )
                 return
             except Exception as e:
-                print(
-                    f"[PiperEngine] Gagal memuat PiperVoice: {e}. Menggunakan fallback."
-                )
+                print(f"[PiperEngine] Gagal memuat PiperVoice: {e}")
+                if not _allow_fallback():
+                    raise RuntimeError(
+                        f"Gagal memuat model Piper ONNX untuk '{voice_id}': {e}. "
+                        f"Periksa integritas file di {settings.MODELS_DIR}."
+                    )
 
-        # Tandai sebagai loaded fallback — LOG LOUD WARNING
+        if not _allow_fallback():
+            raise FileNotFoundError(
+                f"Model suara ONNX untuk '{voice_id}' tidak ditemukan di {settings.MODELS_DIR}. "
+                f"Jalankan 'python scripts/download_model.py' untuk mengunduh model resmi."
+            )
+
+        # Hanya aktif jika _allow_fallback aktif (DEBUG mode atau test environment)
         print(
             f"[PiperEngine] ⚠️  PERINGATAN: Model ONNX untuk '{voice_id}' TIDAK DITEMUKAN! "
-            f"Menggunakan fallback sintetis (suara robotik). "
-            f"Download model: python scripts/download_model.py"
+            f"Mode fallback aktif. Menggunakan generator nada sintetis."
         )
         self._loaded_voices[voice_id] = "fallback_generator"
 
@@ -131,7 +144,7 @@ class PiperEngine(TTSEngine):
         pitch: float = 0.0,
         extra_params: dict[str, Any] | None = None,
     ) -> float:
-        """Sintesis satu teks lengkap."""
+        """Sintesis satu teks lengkap dengan konfigurasi intonasi (noise_scale)."""
         await self.load_model(voice_id)
         self._last_used[voice_id] = time.time()
 
@@ -143,8 +156,28 @@ class PiperEngine(TTSEngine):
             try:
                 from piper.config import SynthesisConfig
 
-                # length_scale invers dari kecepatan (kecepatan 1.2 -> length_scale ~0.83)
-                syn_cfg = SynthesisConfig(length_scale=float(1.0 / max(0.5, speed)))
+                # length_scale invers dari kecepatan
+                # noise_scale dan noise_w_scale mengontrol variasi intonasi & kadensa prosodi
+                noise_scale = (
+                    float(extra_params.get("noise_scale", settings.DEFAULT_NOISE_SCALE))
+                    if extra_params
+                    else settings.DEFAULT_NOISE_SCALE
+                )
+                noise_w_scale = (
+                    float(
+                        extra_params.get(
+                            "noise_w_scale", settings.DEFAULT_NOISE_W_SCALE
+                        )
+                    )
+                    if extra_params
+                    else settings.DEFAULT_NOISE_W_SCALE
+                )
+
+                syn_cfg = SynthesisConfig(
+                    length_scale=float(1.0 / max(0.5, speed)),
+                    noise_scale=noise_scale,
+                    noise_w_scale=noise_w_scale,
+                )
                 with wave.open(str(output_path), "wb") as wav_file:
                     voice_obj.synthesize_wav(text, wav_file, syn_config=syn_cfg)
                 with wave.open(str(output_path), "rb") as wf:
@@ -152,9 +185,18 @@ class PiperEngine(TTSEngine):
                     rate = wf.getframerate()
                     return frames / float(rate)
             except Exception as e:
-                print(f"[PiperEngine] Sintesis ONNX gagal: {e}, beralih ke fallback.")
+                print(f"[PiperEngine] Sintesis ONNX gagal: {e}")
+                if not _allow_fallback():
+                    raise RuntimeError(
+                        f"Sintesis audio Piper ONNX gagal untuk '{voice_id}': {e}"
+                    )
 
-        # Fallback synthesis: menghasilkan audio PCM harmonik natural
+        if not _allow_fallback():
+            raise RuntimeError(
+                f"Model suara '{voice_id}' tidak tersedia dan generator fallback dinonaktifkan."
+            )
+
+        # Fallback synthesis: hanya aktif jika _allow_fallback aktif (DEBUG mode atau test environment)
         return self._synthesize_fallback(text, output_path, speed, pitch, voice_id)
 
     def _synthesize_fallback(

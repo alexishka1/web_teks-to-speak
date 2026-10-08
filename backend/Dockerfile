@@ -17,6 +17,9 @@ RUN mkdir -p /app/storage/audio /app/storage/models
 
 COPY . .
 
+# Unduh model ONNX resmi Piper bahasa Indonesia dengan verifikasi checksum MD5
+RUN python scripts/download_voice.py
+
 ENV PORT=8000
 ENV HOST=0.0.0.0
 ENV PYTHONUNBUFFERED=1
