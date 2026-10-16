@@ -1,7 +1,7 @@
 """
 Modul Seeder & Migrasi Data Awal TaSTP:
-Memigrasikan data hardcode voices, presets, emotions, dan lexicon ke dalam database SQLite.
-Memastikan semua item tersimpan dinamis di DB dan dapat dikelola via Studio Manager.
+Memigrasikan data hardcode presets, emotions, dan lexicon ke dalam database SQLite.
+Suara (voices) TIDAK lagi di-seed dari catalog — hanya suara dari rekaman/kloning pengguna.
 """
 
 import uuid
@@ -15,7 +15,6 @@ from app.models.schema import (
     VoiceRecord,
 )
 from app.text.lexicon import DEFAULT_LEXICON
-from app.voices.registry import get_registered_voices
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +23,7 @@ DEFAULT_PRESETS = [
         "id": "preset_podcast_warm",
         "name": "Podcast Hangat & Intim",
         "category": "podcast",
-        "voice_id": "piper_id_siti_podcast",
+        "voice_id": None,
         "speed": 1.0,
         "pitch": -0.5,
         "pause_scale": 1.1,
@@ -37,7 +36,7 @@ DEFAULT_PRESETS = [
         "id": "preset_tiktok_viral",
         "name": "TikTok / Reels Cepat & Viral",
         "category": "creator",
-        "voice_id": "piper_id_gadis_fast",
+        "voice_id": None,
         "speed": 1.22,
         "pitch": 1.2,
         "pause_scale": 0.8,
@@ -50,7 +49,7 @@ DEFAULT_PRESETS = [
         "id": "preset_news_formal",
         "name": "Berita Resmi & Wawasan",
         "category": "news",
-        "voice_id": "id_ID-news_tts-medium",
+        "voice_id": None,
         "speed": 1.05,
         "pitch": 0.0,
         "pause_scale": 1.0,
@@ -63,7 +62,7 @@ DEFAULT_PRESETS = [
         "id": "preset_radio_commercial",
         "name": "Radio Komersial Siang",
         "category": "radio",
-        "voice_id": "piper_id_dimas_news",
+        "voice_id": None,
         "speed": 1.12,
         "pitch": 0.5,
         "pause_scale": 0.9,
@@ -76,7 +75,7 @@ DEFAULT_PRESETS = [
         "id": "preset_storytelling_night",
         "name": "Dongeng & Audio Book Malam",
         "category": "story",
-        "voice_id": "piper_id_bima_narrator",
+        "voice_id": None,
         "speed": 0.92,
         "pitch": -1.0,
         "pause_scale": 1.3,
@@ -109,34 +108,30 @@ async def migrate_and_seed_database(session: AsyncSession) -> None:
     except Exception:
         await session.rollback()
 
-    # 2. Migrasi Suara (Voices)
-    v_res = await session.execute(select(VoiceRecord))
-    existing_voices = {v.id: v for v in v_res.scalars().all()}
-    catalog_voices = get_registered_voices()
-    for v in catalog_voices:
-        v_id = v["id"]
-        if v_id not in existing_voices:
-            v_rec = VoiceRecord(
-                id=v_id,
-                name=v["name"],
-                gender=v.get("gender", "female"),
-                language=v.get("language", "id-ID"),
-                category=v.get("category", "creator"),
-                description=v.get("description", ""),
-                engine=v.get("engine", "piper"),
-                model_path=f"storage/models/{v_id}.onnx" if v.get("engine") == "piper" else None,
-                config_path=f"storage/models/{v_id}.json" if v.get("engine") == "piper" else None,
-                sample_rate=v.get("sample_rate", 22050),
-                is_cloned=v.get("is_cloned", False),
-                is_active=True,
-                created_at=now,
-            )
-            session.add(v_rec)
-        else:
-            rec = existing_voices[v_id]
-            rec.name = v["name"]
-            rec.engine = v.get("engine", rec.engine)
-            rec.description = v.get("description", rec.description)
+    # 2. Hapus suara preset bawaan dari DB (migrasi dari versi lama)
+    # Suara yang bukan hasil kloning/rekaman pengguna dihapus
+    preset_voice_ids = [
+        "id_ID-news_tts-medium",
+        "piper_id_gadis_fast",
+        "piper_id_bima_narrator",
+        "piper_id_siti_podcast",
+        "piper_id_dimas_news",
+        "edge_ardi",
+        "edge_gadis",
+        "edge_dimas",
+        "edge_siti",
+        "gemini_kore",
+        "gemini_puck",
+        "gemini_fenrir",
+        "gemini_aoede",
+    ]
+    for vid in preset_voice_ids:
+        existing = await session.execute(
+            select(VoiceRecord).where(VoiceRecord.id == vid)
+        )
+        rec = existing.scalar_one_or_none()
+        if rec and not rec.is_cloned:
+            await session.delete(rec)
     await session.commit()
 
     # 3. Migrasi Preset Suara (Style Presets)

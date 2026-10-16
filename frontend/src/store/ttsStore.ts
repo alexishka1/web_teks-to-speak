@@ -151,6 +151,7 @@ interface TTSState {
   isPlayingPreview: boolean;
   playVoicePreview: (voiceId: string) => Promise<void>;
   stopVoicePreview: () => void;
+  deleteVoice: (voiceId: string) => Promise<void>;
 }
 
 const DEFAULT_SAMPLE_TEXT = `Stop scroll dulu! Tahu nggak rahasia terbesar kreator konten dengan jutaan penonton?
@@ -177,7 +178,7 @@ export const useTTSStore = create<TTSState>((set, get) => ({
 
   selectedEngine: "piper",
   setSelectedEngine: (selectedEngine) => set({ selectedEngine }),
-  selectedVoiceId: "id_ID-news_tts-medium",
+  selectedVoiceId: "",
   setSelectedVoiceId: (selectedVoiceId) => set({ selectedVoiceId }),
   speed: 1.0,
   setSpeed: (speed) => set({ speed }),
@@ -285,17 +286,32 @@ export const useTTSStore = create<TTSState>((set, get) => ({
       set({ isLoadingVoices: true });
       const voicesList = await fetchVoices();
       if (Array.isArray(voicesList) && voicesList.length > 0) {
+        const currentVoiceId = get().selectedVoiceId;
+        const exists = voicesList.some((v) => v.id === currentVoiceId);
         set({
           voices: voicesList,
           isLoadingVoices: false,
-          selectedVoiceId: get().selectedVoiceId || voicesList[0].id,
+          selectedVoiceId: exists ? currentVoiceId : voicesList[0].id,
         });
       } else {
-        set({ isLoadingVoices: false });
+        set({ voices: [], selectedVoiceId: "", isLoadingVoices: false });
       }
     } catch (e) {
       console.error("Gagal mengambil suara:", e);
       set({ isLoadingVoices: false });
+    }
+  },
+
+  deleteVoice: async (voiceId: string) => {
+    try {
+      const { deleteVoiceApi } = await import("@/lib/api");
+      await deleteVoiceApi(voiceId);
+      const updated = get().voices.filter((v) => v.id !== voiceId);
+      const currentSelected = get().selectedVoiceId;
+      const newSelected = currentSelected === voiceId ? (updated[0]?.id || "") : currentSelected;
+      set({ voices: updated, selectedVoiceId: newSelected });
+    } catch (e) {
+      console.error("Gagal menghapus suara:", e);
     }
   },
 
@@ -325,6 +341,14 @@ export const useTTSStore = create<TTSState>((set, get) => ({
 
     if (!text.trim()) {
       set({ generationError: "Silakan masukkan teks naskah terlebih dahulu." });
+      return;
+    }
+
+    if (!selectedVoiceId) {
+      set({
+        generationError:
+          "Belum ada suara yang dipilih. Silakan rekam atau unggah suara Anda terlebih dahulu di menu Voice Clone.",
+      });
       return;
     }
 

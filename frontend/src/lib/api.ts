@@ -60,6 +60,21 @@ export async function fetchVoices() {
   return res.json();
 }
 
+export async function deleteVoiceApi(voiceId: string) {
+  const res = await fetch(`/voices/${voiceId}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const fallbackRes = await fetch(`/api/studio/voices/${voiceId}`, {
+      method: "DELETE",
+    });
+    if (!fallbackRes.ok) throw new Error("Gagal menghapus suara");
+    return fallbackRes.json();
+  }
+  return res.json();
+}
+
+
 export async function fetchEmotions(): Promise<EmotionPresetDTO[]> {
   const res = await fetch("/emotions");
   if (!res.ok) {

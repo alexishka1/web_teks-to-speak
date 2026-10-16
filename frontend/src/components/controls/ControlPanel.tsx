@@ -75,39 +75,6 @@ export function ControlPanel() {
     setSelectedEmotion("neutral");
   };
 
-  const displayVoices =
-    voices.length > 0
-      ? voices
-      : [
-          {
-            id: "id_ID-news_tts-medium",
-            name: "Ida - Berita & Narasi Resmi",
-            category: "news",
-            gender: "female",
-            description: "Artikulasi jernih dan akurat untuk berita & edukasi.",
-            engine: "piper",
-            sample_rate: 22050,
-          },
-          {
-            id: "piper_id_gadis_fast",
-            name: "Gadis - Kreator Energik",
-            category: "creator",
-            gender: "female",
-            description: "Suara wanita ceria pas untuk TikTok & Reels.",
-            engine: "piper",
-            sample_rate: 22050,
-          },
-          {
-            id: "piper_id_bima_narrator",
-            name: "Bima - Narator Hangat",
-            category: "narrator",
-            gender: "male",
-            description: "Vokal pria berwibawa untuk narasi YouTube.",
-            engine: "piper",
-            sample_rate: 22050,
-          },
-        ];
-
   return (
     <aside className="w-80 border-l border-border bg-surface flex flex-col justify-between shrink-0 h-full overflow-y-auto">
       <div className="p-4 space-y-5">
@@ -133,7 +100,7 @@ export function ControlPanel() {
           <label className="text-xs font-medium text-muted flex items-center justify-between">
             <span>TTS Engine</span>
             <span className="text-[10px] font-semibold text-fg px-1.5 py-0.2 rounded border border-border bg-panel uppercase">
-              {selectedEngine === "piper" ? "CPU Offline" : "Online Service"}
+              {selectedEngine === "remote" ? "Remote GPU" : selectedEngine === "piper" ? "CPU Offline" : "Online Service"}
             </span>
           </label>
           <div className="grid grid-cols-2 gap-1.5 bg-panel p-1 rounded-md border border-border">
@@ -151,105 +118,76 @@ export function ControlPanel() {
             </button>
             <button
               type="button"
-              onClick={() => setSelectedEngine("edge")}
-              className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
-                selectedEngine === "edge"
-                  ? "bg-primary text-primary-fg shadow-sm"
-                  : "text-muted hover:text-fg font-normal"
-              }`}
-              title="Microsoft Edge Neural TTS Bahasa Indonesia (Free Online)"
-            >
-              <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} /> Edge TTS
-            </button>
-            <button
-              type="button"
-              onClick={() => setSelectedEngine("gemini")}
-              className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
-                selectedEngine === "gemini"
-                  ? "bg-primary text-primary-fg shadow-sm"
-                  : "text-muted hover:text-fg font-normal"
-              }`}
-              title="Google Gemini 3.8 Flash TTS dengan natural style instruction"
-            >
-              <Radio className="w-3.5 h-3.5" strokeWidth={1.5} /> Gemini Flash
-            </button>
-            <button
-              type="button"
               onClick={() => setSelectedEngine("remote")}
               className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
                 selectedEngine === "remote"
                   ? "bg-primary text-primary-fg shadow-sm"
                   : "text-muted hover:text-fg font-normal"
               }`}
-              title="Remote GPU Worker (Colab/Kaggle)"
+              title="Chatterbox Indonesian via Remote GPU (Colab)"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" strokeWidth={1.5} /> Remote GPU
+              <SlidersHorizontal className="w-3.5 h-3.5" strokeWidth={1.5} /> Chatterbox GPU
             </button>
           </div>
-
-          {/* Online Privacy Notice */}
-          {(selectedEngine === "gemini" || selectedEngine === "edge") && (
-            <div className="p-2.5 rounded-md border border-border bg-panel text-[11px] text-muted space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-fg">
-                <AlertCircle className="w-3.5 h-3.5 text-fg shrink-0" strokeWidth={1.5} />
-                <span>Pemberitahuan Privasi Engine Online</span>
-              </div>
-              <p className="leading-relaxed">
-                Naskah teks dikirim ke layanan online ({selectedEngine === "gemini" ? "Google Gemini API" : "Microsoft Edge Online"}). Untuk privasi 100% lokal tanpa jaringan keluar, pilih engine <strong>Piper ONNX</strong>.
-              </p>
-            </div>
-          )}
         </div>
 
-        {/* 2. Voice Selection */}
+        {/* 2. Voice Selection — Hanya suara dari rekaman/kloning */}
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-muted flex items-center justify-between">
-            <span>Karakter Suara ({displayVoices.length})</span>
-            <span className="text-[10px] text-muted font-mono">Bahasa Indonesia</span>
+            <span>Suara Saya ({voices.length})</span>
+            <span className="text-[10px] text-muted font-mono">Rekaman Sendiri</span>
           </label>
-          <div id="voice-selection-list" className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-            {displayVoices.map((v) => {
-              const isSelected = selectedVoiceId === v.id;
-              const voiceEngine = v.engine || (v.id.startsWith("gemini_") ? "gemini" : v.id.startsWith("edge_") ? "edge" : "piper");
-              return (
-                <button
-                  key={v.id}
-                  id={`btn-voice-${v.id}`}
-                  type="button"
-                  onClick={() => {
-                    setSelectedVoiceId(v.id);
-                    if (v.engine) {
-                      setSelectedEngine(v.engine);
-                    }
-                  }}
-                  className={`w-full text-left p-2.5 rounded-md border text-xs transition-colors duration-150 ${
-                    isSelected
-                      ? "bg-panel border-2 border-primary text-fg font-semibold shadow-sm"
-                      : "bg-surface border-border text-muted hover:text-fg hover:border-fg/30"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-fg flex items-center gap-1.5 truncate">
-                      <span>{v.name.split("-")[0].trim()}</span>
-                      <span className="text-[10px] font-normal text-muted">
-                        ({v.gender === "female" || v.gender === "Wanita" ? "Wanita" : "Pria"})
+          {voices.length > 0 ? (
+            <div id="voice-selection-list" className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+              {voices.map((v) => {
+                const isSelected = selectedVoiceId === v.id;
+                return (
+                  <button
+                    key={v.id}
+                    id={`btn-voice-${v.id}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedVoiceId(v.id);
+                      if (v.engine) {
+                        setSelectedEngine(v.engine);
+                      }
+                    }}
+                    className={`w-full text-left p-2.5 rounded-md border text-xs transition-colors duration-150 ${
+                      isSelected
+                        ? "bg-panel border-2 border-primary text-fg font-semibold shadow-sm"
+                        : "bg-surface border-border text-muted hover:text-fg hover:border-fg/30"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-fg flex items-center gap-1.5 truncate">
+                        <span>{v.name}</span>
+                        <span className="text-[10px] font-normal text-muted">
+                          ({v.gender === "female" || v.gender === "Wanita" ? "Wanita" : "Pria"})
+                        </span>
                       </span>
-                    </span>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-fg uppercase font-mono font-medium">
-                        {voiceEngine}
-                      </span>
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-panel border border-border text-muted font-normal">
-                        {v.backed_by === "dedicated_model" || v.id === "id_ID-news_tts-medium" || voiceEngine !== "piper"
-                          ? "Model Mandiri"
-                          : "Profil Vokal"}
+                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-primary/10 border border-primary/30 text-primary uppercase font-medium shrink-0">
+                        {v.is_cloned ? "Klon" : "Rekaman"}
                       </span>
                     </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="p-3 rounded-md border border-border bg-panel text-center space-y-2">
+              <p className="text-[11px] text-muted leading-relaxed">
+                Belum ada suara. Rekam suaramu dulu di menu <strong>Voice Clone</strong>.
+              </p>
+              <button
+                type="button"
+                onClick={() => useTTSStore.getState().setActiveTab("clone")}
+                className="text-[11px] text-primary font-semibold hover:underline flex items-center gap-1 mx-auto"
+              >
+                <Sparkles className="w-3 h-3" strokeWidth={1.5} />
+                Rekam Suara Baru
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 3. Preset Gaya */}

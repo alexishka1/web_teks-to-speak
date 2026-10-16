@@ -20,6 +20,10 @@ const nextConfig = {
         destination: `${backendUrl}/voices`,
       },
       {
+        source: "/voices/:path*",
+        destination: `${backendUrl}/voices/:path*`,
+      },
+      {
         source: "/jobs/:path*",
         destination: `${backendUrl}/jobs/:path*`,
       },

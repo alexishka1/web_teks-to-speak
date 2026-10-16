@@ -42,9 +42,9 @@ export function Sidebar() {
     { id: "tts", label: "Text to Speech", icon: Mic },
     {
       id: "library",
-      label: "Voice Library",
+      label: "Suara Saya",
       icon: Library,
-      badge: voices.length > 0 ? String(voices.length) : "5",
+      badge: voices.length > 0 ? String(voices.length) : undefined,
     },
     { id: "studio", label: "Studio Manager", icon: SlidersHorizontal, badge: "Admin" },
     { id: "clone", label: "Voice Clone", icon: Sparkles, badge: "Beta" },
