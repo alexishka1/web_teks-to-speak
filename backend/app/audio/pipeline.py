@@ -92,9 +92,9 @@ def get_clone_acoustic_profile(voice_id: str) -> tuple[float, str | None]:
                     if best_lag > 0:
                         f0 = rate / best_lag
                         semitones = 12.0 * math.log2(f0 / 185.0)
-                        clamped_shift = max(-8.5, min(5.0, round(semitones, 1)))
+                        clamped_shift = max(-6.0, min(4.5, round(semitones, 1)))
                         if clamped_shift <= -2.0:
-                            eq = "bass=g=4.5:f=160,equalizer=f=3000:t=q:w=1.2:g=-2.5"
+                            eq = "bass=g=3.5:f=160,equalizer=f=3000:t=q:w=1.2:g=-2.0"
                         elif clamped_shift >= 1.5:
                             eq = "treble=g=2.5:f=3500,equalizer=f=2800:t=q:w=1.0:g=1.5"
                         else:

@@ -77,9 +77,42 @@ class GeminiTTSEngine(TTSEngine):
         """Menerjemahkan voice_id TaSTP ke nama prebuilt voice Gemini."""
         if voice_id in GEMINI_VOICE_MAPPING:
             return GEMINI_VOICE_MAPPING[voice_id]["voice_name"]
-        # Jika user memasukkan langsung nama prebuilt (misal 'Kore', 'Puck', 'Charon')
+
+        # Jika suara adalah suara kloning pengguna (clone_...)
+        if voice_id.startswith("clone_"):
+            try:
+                import sqlite3
+                from app.config import BASE_DIR
+
+                db_path = BASE_DIR / "storage" / "tastp.db"
+                if db_path.exists():
+                    conn = sqlite3.connect(str(db_path))
+                    c = conn.cursor()
+                    row = c.execute(
+                        "SELECT gender, name FROM voice_records WHERE id=?", (voice_id,)
+                    ).fetchone()
+                    conn.close()
+                    if row:
+                        gender, name = (row[0] or "").lower(), (row[1] or "").lower()
+                        is_male = gender in ("male", "pria") or any(
+                            k in name for k in ["boy", "pria", "cowok", "man", "bima", "dimas", "laki"]
+                        )
+                        if not is_male and gender not in ("female", "wanita", "perempuan", "cewek", "gadis"):
+                            try:
+                                from app.audio.pipeline import get_clone_acoustic_profile
+                                shift, _ = get_clone_acoustic_profile(voice_id)
+                                if shift <= -2.0:
+                                    is_male = True
+                            except Exception:
+                                pass
+                        return "Puck" if is_male else "Kore"
+            except Exception as e:
+                print(f"[GeminiEngine] Error lookup voice clone: {e}")
+            return "Puck" if any(k in voice_id.lower() for k in ["boy", "male", "pria"]) else "Kore"
+
+        # Jika user memasukkan langsung nama prebuilt (misal 'Kore', 'Puck', 'Fenrir', 'Aoede')
         clean = voice_id.replace("gemini_", "").capitalize()
-        return clean or "Kore"
+        return clean if clean in ("Kore", "Puck", "Fenrir", "Aoede", "Charon") else "Kore"
 
     async def synthesize(
         self,

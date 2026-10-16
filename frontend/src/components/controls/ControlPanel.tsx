@@ -100,14 +100,26 @@ export function ControlPanel() {
           <label className="text-xs font-medium text-muted flex items-center justify-between">
             <span>TTS Engine</span>
             <span className="text-[10px] font-semibold text-fg px-1.5 py-0.2 rounded border border-border bg-panel uppercase">
-              {selectedEngine === "remote" ? "Remote GPU" : selectedEngine === "piper" ? "CPU Offline" : "Online Service"}
+              {selectedEngine === "gemini" ? "Gemini AI" : selectedEngine === "remote" ? "Remote GPU" : "CPU Offline"}
             </span>
           </label>
-          <div className="grid grid-cols-2 gap-1.5 bg-panel p-1 rounded-md border border-border">
+          <div className="grid grid-cols-3 gap-1 bg-panel p-1 rounded-md border border-border">
+            <button
+              type="button"
+              onClick={() => setSelectedEngine("gemini")}
+              className={`py-1.5 px-1 rounded text-xs font-semibold flex items-center justify-center gap-1 transition-colors duration-150 ${
+                selectedEngine === "gemini"
+                  ? "bg-primary text-primary-fg shadow-sm"
+                  : "text-muted hover:text-fg font-normal"
+              }`}
+              title="Google Gemini AI Studio — Suara natural, ekspresif & berkelas studio"
+            >
+              <Sparkles className="w-3.5 h-3.5" strokeWidth={1.5} /> Gemini AI
+            </button>
             <button
               type="button"
               onClick={() => setSelectedEngine("piper")}
-              className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+              className={`py-1.5 px-1 rounded text-xs font-semibold flex items-center justify-center gap-1 transition-colors duration-150 ${
                 selectedEngine === "piper"
                   ? "bg-primary text-primary-fg shadow-sm"
                   : "text-muted hover:text-fg font-normal"
@@ -119,14 +131,14 @@ export function ControlPanel() {
             <button
               type="button"
               onClick={() => setSelectedEngine("remote")}
-              className={`py-1.5 px-2 rounded text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors duration-150 ${
+              className={`py-1.5 px-1 rounded text-xs font-semibold flex items-center justify-center gap-1 transition-colors duration-150 ${
                 selectedEngine === "remote"
                   ? "bg-primary text-primary-fg shadow-sm"
                   : "text-muted hover:text-fg font-normal"
               }`}
               title="Chatterbox Indonesian via Remote GPU (Colab)"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5" strokeWidth={1.5} /> Chatterbox GPU
+              <SlidersHorizontal className="w-3.5 h-3.5" strokeWidth={1.5} /> Chatterbox
             </button>
           </div>
         </div>
@@ -148,9 +160,8 @@ export function ControlPanel() {
                     type="button"
                     onClick={() => {
                       setSelectedVoiceId(v.id);
-                      if (v.engine) {
-                        setSelectedEngine(v.engine);
-                      }
+                      setIsClonedVoice(true);
+                      setCloneConsentGiven(true);
                     }}
                     className={`w-full text-left p-2.5 rounded-md border text-xs transition-colors duration-150 ${
                       isSelected

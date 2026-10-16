@@ -176,7 +176,7 @@ export const useTTSStore = create<TTSState>((set, get) => ({
   activeSentenceIndex: -1,
   setActiveSentenceIndex: (activeSentenceIndex) => set({ activeSentenceIndex }),
 
-  selectedEngine: "piper",
+  selectedEngine: "gemini",
   setSelectedEngine: (selectedEngine) => set({ selectedEngine }),
   selectedVoiceId: "",
   setSelectedVoiceId: (selectedVoiceId) => set({ selectedVoiceId }),
@@ -215,7 +215,6 @@ export const useTTSStore = create<TTSState>((set, get) => ({
       audioEffect: found.audio_effect || "none",
       selectedEmotion: found.emotion || "neutral",
       emotionIntensity: found.emotion_intensity ?? 100,
-      ...(found.voice_id ? { selectedVoiceId: found.voice_id } : {}),
     });
   },
 
@@ -288,10 +287,14 @@ export const useTTSStore = create<TTSState>((set, get) => ({
       if (Array.isArray(voicesList) && voicesList.length > 0) {
         const currentVoiceId = get().selectedVoiceId;
         const exists = voicesList.some((v) => v.id === currentVoiceId);
+        const activeVoiceId = exists ? currentVoiceId : voicesList[0].id;
+        const isClone = activeVoiceId.startsWith("clone_");
         set({
           voices: voicesList,
           isLoadingVoices: false,
-          selectedVoiceId: exists ? currentVoiceId : voicesList[0].id,
+          selectedVoiceId: activeVoiceId,
+          isClonedVoice: isClone,
+          cloneConsentGiven: isClone ? true : get().cloneConsentGiven,
         });
       } else {
         set({ voices: [], selectedVoiceId: "", isLoadingVoices: false });
@@ -352,7 +355,10 @@ export const useTTSStore = create<TTSState>((set, get) => ({
       return;
     }
 
-    if (isClonedVoice && !cloneConsentGiven) {
+    const isClone = selectedVoiceId.startsWith("clone_") || isClonedVoice;
+    const consent = isClone ? true : cloneConsentGiven;
+
+    if (isClonedVoice && !consent) {
       set({
         generationError:
           "Persetujuan pemilik suara wajib dicentang untuk model klon suara.",
@@ -388,9 +394,9 @@ export const useTTSStore = create<TTSState>((set, get) => ({
         emotion: isAutoEmotionMode ? "auto" : selectedEmotion,
         emotion_intensity: emotionIntensity,
         sentence_emotions: orderedSentenceEmos.length > 0 ? orderedSentenceEmos : undefined,
-        is_cloned_voice: isClonedVoice,
-        voice_clone_consent: cloneConsentGiven,
-        engine: get().selectedEngine || undefined,
+        is_cloned_voice: isClone,
+        voice_clone_consent: consent,
+        engine: get().selectedEngine || "gemini",
       };
 
       const progressTimer = setInterval(() => {
