@@ -79,21 +79,25 @@ export function VoiceClone() {
   const [transcript, setTranscript] = useState("");
   const [consentChecked, setConsentChecked] = useState(false);
 
-  // File upload state
+  // File upload state (bisa semua jenis file audio & video)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [fileDuration, setFileDuration] = useState<number | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const audioPreviewRef = useRef<HTMLAudioElement | null>(null);
   const [isPlayingPreview, setIsPlayingPreview] = useState(false);
 
-  // Perekam Browser (MediaRecorder)
+  // Perekam Browser (MediaRecorder) yang diperbaiki
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number>(0);
+  const recordingSecondsRef = useRef<number>(0);
 
   // Audio VU Meter Analyser
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -148,24 +152,37 @@ export function VoiceClone() {
     };
   }, [loadLogs]);
 
-
-  // --- AUDIO ANALYSER & RECORDING ---
+  // --- AUDIO ANALYSER & RECORDING LOGIC ---
   const startRecording = async () => {
     try {
       setStatusMessage(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          channelCount: 1,
-          sampleRate: 24000,
-          echoCancellation: false,
-          noiseSuppression: false,
-        },
-      });
+      resetRecording();
 
-      // Siapkan AudioContext untuk VU Meter
+      // Minta izin mikrofon dengan fallback
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            channelCount: 1,
+            sampleRate: 24000,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      }
+      streamRef.current = stream;
+
+      // Siapkan AudioContext untuk VU Meter level audio
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       const audioCtx = new AudioCtx();
       audioContextRef.current = audioCtx;
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+      }
+
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 256;
@@ -199,48 +216,66 @@ export function VoiceClone() {
       };
       checkVolume();
 
-      // Inisialisasi MediaRecorder
-      const options = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-        ? { mimeType: "audio/webm;codecs=opus" }
-        : undefined;
+      // Inisialisasi MediaRecorder dengan codec yang didukung browser
+      const mimeTypes = [
+        "audio/webm;codecs=opus",
+        "audio/webm",
+        "audio/ogg;codecs=opus",
+        "audio/mp4",
+        "audio/aac",
+      ];
+      let selectedMime = "";
+      for (const m of mimeTypes) {
+        if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(m)) {
+          selectedMime = m;
+          break;
+        }
+      }
+      const options = selectedMime ? { mimeType: selectedMime } : undefined;
 
       const mediaRecorder = new MediaRecorder(stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
+        if (event.data && event.data.size > 0) {
           audioChunksRef.current.push(event.data);
         }
       };
 
       mediaRecorder.onstop = () => {
-        const mimeType = mediaRecorder.mimeType || "audio/webm";
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        const finalMime = mediaRecorder.mimeType || selectedMime || "audio/webm";
+        const blob = new Blob(audioChunksRef.current, { type: finalMime });
         setRecordedBlob(blob);
         const url = URL.createObjectURL(blob);
         setPreviewUrl(url);
 
-        const tempAudio = new Audio(url);
-        tempAudio.onloadedmetadata = () => {
-          setFileDuration(tempAudio.duration);
-        };
-
+        const recSecs = recordingSecondsRef.current || 15;
+        setFileDuration(recSecs);
         stopMicrophoneStream();
       };
 
-      mediaRecorder.start(250);
+      mediaRecorder.start(200);
       setIsRecording(true);
       setIsPaused(false);
       setRecordingSeconds(0);
+      recordingSecondsRef.current = 0;
+      startTimeRef.current = Date.now();
 
       timerIntervalRef.current = setInterval(() => {
-        setRecordingSeconds((prev) => prev + 1);
-      }, 1000);
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        setRecordingSeconds(elapsed);
+        recordingSecondsRef.current = elapsed;
+
+        // Auto-stop jika rekaman telah mencapai 30 detik (durasi optimal)
+        if (elapsed >= 30) {
+          stopRecording();
+        }
+      }, 500);
     } catch (err: any) {
       setStatusMessage({
         type: "error",
-        text: `Tidak dapat mengakses mikrofon: ${err.message || "Izin akses ditolak."}`,
+        text: `Tidak dapat mengakses mikrofon: ${err.message || "Izin akses mikrofon ditolak."}. Pastikan mikrofon terhubung dan izin peramban aktif.`,
       });
     }
   };
@@ -254,15 +289,20 @@ export function VoiceClone() {
       } else {
         mediaRecorderRef.current.resume();
         setIsPaused(false);
+        const currentElapsed = recordingSecondsRef.current;
+        startTimeRef.current = Date.now() - currentElapsed * 1000;
         timerIntervalRef.current = setInterval(() => {
-          setRecordingSeconds((prev) => prev + 1);
-        }, 1000);
+          const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          setRecordingSeconds(elapsed);
+          recordingSecondsRef.current = elapsed;
+          if (elapsed >= 30) stopRecording();
+        }, 500);
       }
     }
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       setIsPaused(false);
@@ -274,14 +314,25 @@ export function VoiceClone() {
   };
 
   const resetRecording = () => {
-    stopRecording();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+    }
     stopMicrophoneStream();
+    setIsRecording(false);
+    setIsPaused(false);
     setRecordedBlob(null);
     setPreviewUrl(null);
     setFileDuration(null);
     setRecordingSeconds(0);
+    recordingSecondsRef.current = 0;
     setVolumeLevel(0);
     setClippingAlert(false);
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
   };
 
   const stopMicrophoneStream = () => {
@@ -293,14 +344,18 @@ export function VoiceClone() {
       audioContextRef.current.close().catch(() => {});
       audioContextRef.current = null;
     }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
     if (mediaRecorderRef.current && mediaRecorderRef.current.stream) {
       mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
     }
     setVolumeLevel(0);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  // --- FILE UPLOAD (MENDUKUNG SEMUA FORMAT AUDIO & VIDEO) ---
+  const handleFileSelection = (file: File) => {
     if (!file) return;
 
     setSelectedFile(file);
@@ -309,10 +364,48 @@ export function VoiceClone() {
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
 
-    const tempAudio = new Audio(url);
-    tempAudio.onloadedmetadata = () => {
-      setFileDuration(tempAudio.duration);
+    // Coba baca durasi audio/video jika browser mendukung decoder-nya
+    const isVideo = file.type.startsWith("video") || /\.(mp4|mov|mkv|avi|webm|3gp)$/i.test(file.name);
+    const tempMedia = isVideo ? document.createElement("video") : new Audio();
+    tempMedia.src = url;
+    tempMedia.onloadedmetadata = () => {
+      if (Number.isFinite(tempMedia.duration) && tempMedia.duration > 0) {
+        setFileDuration(tempMedia.duration);
+      } else {
+        setFileDuration(15);
+      }
     };
+    tempMedia.onerror = () => {
+      // Browser mungkin tidak bisa decode video MKV/AVI/FLAC tertentu secara native, namun FFmpeg backend tetap bisa memprosesnya
+      setFileDuration(15);
+    };
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleFileSelection(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileSelection(file);
+    }
   };
 
   // --- SUBMIT CLONE ---
@@ -326,16 +419,31 @@ export function VoiceClone() {
       if (!recordedBlob) {
         setStatusMessage({
           type: "error",
-          text: "Silakan rekam suara Anda terlebih dahulu (minimal 10 detik, ideal 15-30 detik).",
+          text: "Silakan rekam suara Anda terlebih dahulu (tekan tombol Mulai Rekam Suara).",
+        });
+        return;
+      }
+      if (recordingSeconds < 3) {
+        setStatusMessage({
+          type: "error",
+          text: `Rekaman terlalu singkat (${recordingSeconds} detik). Minimal rekam 3 detik agar vokal terdengar jelas.`,
         });
         return;
       }
       audioToUpload = recordedBlob;
+      const ext = recordedBlob.type.includes("mp4")
+        ? ".mp4"
+        : recordedBlob.type.includes("ogg")
+        ? ".ogg"
+        : recordedBlob.type.includes("wav")
+        ? ".wav"
+        : ".webm";
+      fileName = `rekaman_${Date.now()}${ext}`;
     } else {
       if (!selectedFile) {
         setStatusMessage({
           type: "error",
-          text: "Pilih file sampel audio terlebih dahulu (WAV/MP3/M4A).",
+          text: "Pilih file terlebih dahulu (mendukung semua jenis file audio & video).",
         });
         return;
       }
@@ -346,23 +454,7 @@ export function VoiceClone() {
     if (!consentChecked) {
       setStatusMessage({
         type: "error",
-        text: "Persetujuan pemilik suara wajib dicentang demi etika dan regulasi AI.",
-      });
-      return;
-    }
-
-    const durationToCheck = inputMode === "record" ? recordingSeconds : (fileDuration || 0);
-    if (durationToCheck < 9.5) {
-      setStatusMessage({
-        type: "error",
-        text: `Durasi sampel adalah ${durationToCheck.toFixed(1)} detik. Sampel wajib minimal 10 detik agar karakteristik vokal terbentuk akurat.`,
-      });
-      return;
-    }
-    if (durationToCheck > 35.0) {
-      setStatusMessage({
-        type: "error",
-        text: `Durasi sampel adalah ${durationToCheck.toFixed(1)} detik. Maksimal durasi sampel vokal adalah 30 detik.`,
+        text: "Persetujuan pemilik suara wajib dicentang demi etika dan kepatuhan regulasi AI.",
       });
       return;
     }
@@ -370,7 +462,7 @@ export function VoiceClone() {
     setIsUploading(true);
     setStatusMessage({
       type: "info",
-      text: "Memproses standarisasi 24 kHz, pemangkasan hening, dan normalisasi volume...",
+      text: "Memproses ekstraksi audio, konversi 24 kHz, pemangkasan hening, dan normalisasi volume...",
     });
 
     const formData = new FormData();
@@ -449,9 +541,9 @@ export function VoiceClone() {
     setTimeout(() => setCopiedScript(false), 2000);
   };
 
-  const currentDuration = inputMode === "record" ? recordingSeconds : (fileDuration || 0);
-  const isDurationValid = currentDuration >= 9.8 && currentDuration <= 30.5;
-  const isDurationIdeal = currentDuration >= 14.5 && currentDuration <= 30.0;
+  const currentDuration = inputMode === "record" ? recordingSeconds : (fileDuration || 15);
+  const isDurationValid = currentDuration >= 3.0;
+  const isDurationIdeal = currentDuration >= 10.0 && currentDuration <= 30.0;
 
   const currentScript =
     READING_SCRIPTS.find((s) => s.id === selectedScriptId) || READING_SCRIPTS[0];
@@ -565,10 +657,10 @@ export function VoiceClone() {
                     setInputMode("record");
                     setSelectedFile(null);
                   }}
-                  className={`text-xs px-3 py-1 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
                     inputMode === "record"
-                      ? "bg-primary text-primary-fg text-primary-fg font-semibold"
-                      : "text-muted hover:text-fg"
+                      ? "bg-primary text-primary-fg font-semibold shadow-sm"
+                      : "text-muted hover:text-fg hover:bg-hover"
                   }`}
                 >
                   <Mic className="w-3.5 h-3.5" />
@@ -581,10 +673,10 @@ export function VoiceClone() {
                     setInputMode("upload");
                     resetRecording();
                   }}
-                  className={`text-xs px-3 py-1 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
+                  className={`text-xs px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1.5 ${
                     inputMode === "upload"
-                      ? "bg-primary text-primary-fg text-primary-fg font-semibold"
-                      : "text-muted hover:text-fg"
+                      ? "bg-primary text-primary-fg font-semibold shadow-sm"
+                      : "text-muted hover:text-fg hover:bg-hover"
                   }`}
                 >
                   <UploadCloud className="w-3.5 h-3.5" />
@@ -691,71 +783,88 @@ export function VoiceClone() {
                   </div>
                 </div>
 
-                {/* Indikator Status Kualitas Durasi */}
+                {/* Indikator Status Kualitas Durasi Rekaman */}
                 {recordingSeconds > 0 && !isRecording && (
                   <div className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-panel border border-border">
                     <span className="text-muted">
                       Durasi Terambil: <strong className="text-fg">{recordingSeconds}s</strong>
                     </span>
-                    {isDurationIdeal ? (
-                      <span className="text-fg font-semibold text-[11px] font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Sangat Ideal (15–30s)
+                    {recordingSeconds >= 10 && recordingSeconds <= 30 ? (
+                      <span className="text-emerald-500 font-semibold text-[11px] flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Sangat Ideal (10–30s)
                       </span>
-                    ) : isDurationValid ? (
-                      <span className="text-fg font-semibold text-[11px] font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Memenuhi Syarat Minimal (&gt; 10s)
+                    ) : recordingSeconds >= 3 ? (
+                      <span className="text-primary font-semibold text-[11px] flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Memenuhi Syarat (&gt;= 3s)
                       </span>
                     ) : (
-                      <span className="text-fg font-semibold text-[11px] font-semibold flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" /> Terlalu Pendek (&lt; 10s)
+                      <span className="text-amber-500 font-semibold text-[11px] flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5" /> Terlalu Singkat (&lt; 3s, rekam ulang)
                       </span>
                     )}
                   </div>
                 )}
               </div>
             ) : (
-              /* AREA 2: UPLOAD FILE AUDIO */
+              /* AREA 2: UPLOAD FILE AUDIO / VIDEO (SEMUA FORMAT) */
               <div>
-                <div className="border-2 border-dashed border-border hover:border-border rounded-xl p-5 text-center transition-colors bg-surface">
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`border-2 border-dashed rounded-xl p-6 text-center transition-all bg-surface cursor-pointer ${
+                    isDragging
+                      ? "border-primary bg-primary/10 shadow-md"
+                      : "border-border hover:border-fg/40"
+                  }`}
+                >
                   <input
                     type="file"
-                    accept="audio/*,.wav,.mp3,.m4a,.ogg,.webm"
+                    accept="*/*"
                     onChange={handleFileChange}
                     className="hidden"
                     id="sample-file-input"
                   />
                   <label
                     htmlFor="sample-file-input"
-                    className="cursor-pointer flex flex-col items-center justify-center gap-2"
+                    className="cursor-pointer flex flex-col items-center justify-center gap-2.5"
                   >
-                    <UploadCloud className="w-8 h-8 text-muted hover:text-fg transition-colors" />
-                    <div className="text-xs font-medium text-fg">
-                      {selectedFile ? selectedFile.name : "Pilih File Sampel Audio (WAV / MP3 / M4A)"}
+                    <div className="w-12 h-12 rounded-full bg-panel border border-border flex items-center justify-center">
+                      <UploadCloud className="w-6 h-6 text-fg" />
                     </div>
-                    <p className="text-[11px] text-muted">
-                      Durasi ideal 15–30 detik tanpa musik latar (maks. 25 MB).
-                    </p>
+                    <div className="space-y-1">
+                      <div className="text-xs font-semibold text-fg">
+                        {selectedFile ? selectedFile.name : "Klik atau Tarik File ke Sini"}
+                      </div>
+                      <p className="text-[11px] text-muted">
+                        {selectedFile
+                          ? `Ukuran: ${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB • Ekstensi: .${selectedFile.name.split(".").pop() || "file"}`
+                          : "Bisa semua jenis file (Audio & Video: WAV, MP3, M4A, OGG, WEBM, FLAC, MP4, MOV, MKV, AAC, dll.)"}
+                      </p>
+                    </div>
+                    <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-panel border border-border text-muted">
+                      Maks. 250 MB • Otomatis diekstrak dan distandardisasi ke 24 kHz
+                    </span>
                   </label>
                 </div>
 
-                {fileDuration !== null && (
+                {selectedFile && (
                   <div className="mt-2.5 flex items-center justify-between text-xs p-2.5 rounded-lg bg-panel border border-border">
-                    <span className="text-muted">
-                      Durasi: <strong className="text-fg">{fileDuration.toFixed(1)}s</strong>
-                    </span>
-                    {isDurationIdeal ? (
-                      <span className="text-fg font-semibold text-[11px] font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Durasi Ideal
-                      </span>
-                    ) : isDurationValid ? (
-                      <span className="text-fg font-semibold text-[11px] font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> Memenuhi Syarat
-                      </span>
-                    ) : (
-                      <span className="text-fg font-semibold text-[11px] font-semibold flex items-center gap-1">
-                        <AlertCircle className="w-3.5 h-3.5" /> Durasi Tidak Valid (10–30s)
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2 truncate">
+                      <FileAudio className="w-4 h-4 text-primary shrink-0" />
+                      <span className="truncate text-fg font-medium">{selectedFile.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setPreviewUrl(null);
+                        setFileDuration(null);
+                      }}
+                      className="text-[11px] text-muted hover:text-red-500 font-medium ml-2 shrink-0 transition-colors"
+                    >
+                      Ganti File
+                    </button>
                   </div>
                 )}
               </div>
@@ -893,16 +1002,16 @@ export function VoiceClone() {
                 !consentChecked ||
                 !voiceName.trim() ||
                 !speakerName.trim() ||
-                !isDurationValid
+                (inputMode === "record" ? !recordedBlob : !selectedFile)
               }
               className={`w-full py-2.5 px-4 rounded-lg font-semibold text-xs flex items-center justify-center gap-2 transition-all ${
                 isUploading ||
                 !consentChecked ||
                 !voiceName.trim() ||
                 !speakerName.trim() ||
-                !isDurationValid
+                (inputMode === "record" ? !recordedBlob : !selectedFile)
                   ? "bg-panel text-muted border border-border cursor-not-allowed opacity-60"
-                  : "bg-primary text-primary-fg text-primary-fg hover:bg-primary text-primary-fg/90 shadow-md shadow-accent/20 cursor-pointer"
+                  : "bg-primary text-primary-fg hover:opacity-90 shadow-md cursor-pointer"
               }`}
             >
               {isUploading ? (

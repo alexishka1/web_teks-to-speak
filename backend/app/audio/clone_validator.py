@@ -19,12 +19,16 @@ from typing import Any
 
 from app.audio.effects import get_ffmpeg_executable
 
-MIN_SAMPLE_DURATION = 10.0
-MAX_SAMPLE_DURATION = 30.0
-IDEAL_MIN_DURATION = 15.0
+MIN_SAMPLE_DURATION = 3.0
+MAX_SAMPLE_DURATION = 60.0
+IDEAL_MIN_DURATION = 10.0
 IDEAL_MAX_DURATION = 30.0
-MAX_UPLOAD_SIZE_BYTES = 25 * 1024 * 1024  # 25 MB
-SUPPORTED_AUDIO_EXTENSIONS = {".wav", ".mp3", ".m4a", ".ogg", ".webm", ".flac", ".aac"}
+MAX_UPLOAD_SIZE_BYTES = 250 * 1024 * 1024  # 250 MB (Mendukung file audio & video resolusi tinggi)
+# FFmpeg mendukung hampir seluruh jenis file audio dan video (WAV, MP3, M4A, OGG, WEBM, FLAC, AAC, OPUS, WMA, AIFF, MP4, MKV, MOV, dll.)
+SUPPORTED_AUDIO_EXTENSIONS = {
+    ".wav", ".mp3", ".m4a", ".ogg", ".webm", ".flac", ".aac",
+    ".opus", ".wma", ".aiff", ".mka", ".mp4", ".mov", ".mkv", ".avi", ".3gp"
+}
 
 
 def get_audio_duration(file_path: Path) -> float:
@@ -193,6 +197,8 @@ def convert_sample_to_standard_wav(src_path: Path, dest_wav: Path) -> bool:
                 "-y",
                 "-i",
                 str(src_path),
+                "-t",
+                "30",
                 "-af",
                 filter_str,
                 "-ar",
@@ -264,6 +270,7 @@ def decode_to_temp_wav(src_path: Path) -> Path | None:
         res = subprocess.run(
             [
                 ffmpeg_exe, "-y", "-i", str(src_path),
+                "-t", "30",
                 "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", str(out_path),
             ],
             stdout=subprocess.PIPE,
@@ -281,9 +288,9 @@ def decode_to_temp_wav(src_path: Path) -> Path | None:
 def validate_clone_sample(audio_path: Path) -> dict[str, Any]:
     """
     Memvalidasi seluruh kriteria sampel audio untuk voice clone:
-    - Format & ekstensi file
-    - Ukuran maksimum file (<= 25 MB)
-    - Durasi: Wajib 10.0 s.d. 30.0 detik (ideal 15 - 30 detik)
+    - Format & ekstensi file (mendukung semua jenis file audio/video)
+    - Ukuran maksimum file (<= 250 MB)
+    - Durasi: Minimal 3.0 detik (ideal 15 - 30 detik; jika >30s otomatis dipangkas)
     - Non-silent: Harus mengandung sinyal audio vokal yang jelas
     """
     if not audio_path.exists():
@@ -302,7 +309,7 @@ def validate_clone_sample(audio_path: Path) -> dict[str, Any]:
             "error": f"Ukuran file audio ({file_size / (1024 * 1024):.1f} MB) melebihi batas maksimum {max_mb} MB.",
         }
 
-    # Non-WAV (mis. rekaman browser WebM/Opus) -> decode ke WAV PCM dulu
+    # Non-WAV (mis. rekaman browser WebM/Opus, video MP4, M4A, dll) -> decode ke WAV PCM dulu
     work_path = audio_path
     decoded_path: Path | None = None
     if not _is_pcm_wav(audio_path):
@@ -316,22 +323,18 @@ def validate_clone_sample(audio_path: Path) -> dict[str, Any]:
             return {
                 "valid": False,
                 "duration_sec": 0.0,
-                "error": "Format file audio tidak valid atau durasi tidak dapat dibaca. Pastikan FFmpeg terpasang di server.",
+                "error": "Format file tidak dapat didekode sebagai audio. Pastikan file berisi trek suara vokal.",
             }
 
         if dur < MIN_SAMPLE_DURATION:
             return {
                 "valid": False,
                 "duration_sec": round(dur, 2),
-                "error": f"Durasi sampel audio terlalu pendek ({dur:.1f} detik). Sampel suara kloning wajib minimal 10 detik agar pola vokal dikenali.",
+                "error": f"Durasi sampel audio terlalu pendek ({dur:.1f} detik). Sampel suara kloning wajib minimal {MIN_SAMPLE_DURATION:.0f} detik agar pola vokal dikenali.",
             }
 
-        if dur > MAX_SAMPLE_DURATION:
-            return {
-                "valid": False,
-                "duration_sec": round(dur, 2),
-                "error": f"Durasi sampel audio terlalu panjang ({dur:.1f} detik). Maksimal durasi sampel suara kloning adalah 30 detik.",
-            }
+        # Jika durasi > 30 detik, sistem otomatis memangkas ke 30 detik saat konversi (tidak ditolak)
+        effective_dur = min(dur, 30.0)
 
         is_silent, rms = check_audio_energy_and_silence(work_path)
         if is_silent:
