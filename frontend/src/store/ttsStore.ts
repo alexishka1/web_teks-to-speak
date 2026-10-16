@@ -500,6 +500,21 @@ export const useTTSStore = create<TTSState>((set, get) => ({
       return;
     }
 
+    const targetVoice = get().voices.find((v) => v.id === voiceId);
+    // Prioritaskan audio sampel asli (unggahan/rekaman pengguna) dari database
+    const directAudioUrl =
+      targetVoice?.preview_url ||
+      (targetVoice?.is_cloned ? `/api/voice-clone/audio/${voiceId}.wav` : null);
+
+    if (directAudioUrl) {
+      set({
+        previewingVoiceId: voiceId,
+        isPlayingPreview: true,
+        previewAudioUrl: directAudioUrl,
+      });
+      return;
+    }
+
     set({ previewingVoiceId: voiceId, isPlayingPreview: true });
 
     try {
@@ -514,7 +529,7 @@ export const useTTSStore = create<TTSState>((set, get) => ({
       set({ previewAudioUrl: res.audio_url });
     } catch (e) {
       console.error("Gagal memuat pratinjau suara:", e);
-      set({ isPlayingPreview: false, previewingVoiceId: null });
+      set({ isPlayingPreview: false, previewingVoiceId: null, previewAudioUrl: null });
     }
   },
 

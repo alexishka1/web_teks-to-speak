@@ -39,11 +39,21 @@ export function VoiceLibrary() {
 
   // Audio preview playback handler
   useEffect(() => {
-    if (audioRef.current && previewAudioUrl) {
-      audioRef.current.src = previewAudioUrl;
-      audioRef.current.play().catch(() => {});
+    if (!audioRef.current) return;
+    if (isPlayingPreview && previewAudioUrl) {
+      if (audioRef.current.src !== previewAudioUrl && !audioRef.current.src.endsWith(previewAudioUrl)) {
+        audioRef.current.src = previewAudioUrl;
+      }
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch((err) => {
+        console.error("Audio playback error:", err);
+        stopVoicePreview();
+      });
+    } else {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
     }
-  }, [previewAudioUrl]);
+  }, [isPlayingPreview, previewAudioUrl, stopVoicePreview]);
 
   // Hanya tampilkan suara hasil rekaman/kloning
   const myVoices = voices.filter((v) => {
@@ -177,17 +187,17 @@ export function VoiceLibrary() {
                           ? "bg-primary text-primary-fg border-primary font-semibold"
                           : ""
                       }`}
-                      title="Dengarkan sampel suara"
+                      title="Dengarkan rekaman/sampel suara asli"
                     >
                       {isPreviewing ? (
                         <>
                           <Pause className="w-3.5 h-3.5 fill-current" strokeWidth={1.5} />
-                          <span>Memutar...</span>
+                          <span>Berhenti</span>
                         </>
                       ) : (
                         <>
                           <Play className="w-3.5 h-3.5 fill-current ml-0.5" strokeWidth={1.5} />
-                          <span>Preview</span>
+                          <span>Dengar Suara</span>
                         </>
                       )}
                     </button>

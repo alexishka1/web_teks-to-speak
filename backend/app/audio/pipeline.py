@@ -47,6 +47,65 @@ class PipelineResult:
         self.first_sentence_time_ms = first_sentence_time_ms
 
 
+def get_clone_acoustic_profile(voice_id: str) -> tuple[float, str | None]:
+    """
+    Menganalisis sampel audio klon pengguna dan menghasilkan penyesuaian
+    pitch semitone dan filter formant EQ agar suara sintesis mendekati
+    karakter vokal dari file audio aslinya.
+    """
+    clones_dir = settings.AUDIO_OUTPUT_DIR / "clones"
+    clone_wav = clones_dir / f"{voice_id}.wav"
+    if not clone_wav.exists():
+        matches = list(clones_dir.glob(f"*{voice_id}*.wav"))
+        if matches:
+            clone_wav = matches[0]
+
+    if not clone_wav.exists():
+        return 0.0, None
+
+    try:
+        import math
+        import struct
+        import wave
+
+        with wave.open(str(clone_wav), "rb") as wf:
+            rate = wf.getframerate()
+            n_frames = wf.getnframes()
+            if rate > 0 and n_frames >= rate:
+                start_frame = max(0, int(n_frames / 2 - rate * 0.75))
+                wf.setpos(start_frame)
+                raw = wf.readframes(int(rate * 1.5))
+                if raw:
+                    samples = struct.unpack(f"<{len(raw)//2}h", raw)
+                    min_lag = int(rate / 350)
+                    max_lag = int(rate / 75)
+                    best_corr = 0
+                    best_lag = 0
+                    for lag in range(min_lag, max_lag):
+                        corr = sum(
+                            samples[i] * samples[i + lag]
+                            for i in range(0, min(len(samples) - lag, 3000), 2)
+                        )
+                        if corr > best_corr:
+                            best_corr = corr
+                            best_lag = lag
+                    if best_lag > 0:
+                        f0 = rate / best_lag
+                        semitones = 12.0 * math.log2(f0 / 185.0)
+                        clamped_shift = max(-8.5, min(5.0, round(semitones, 1)))
+                        if clamped_shift <= -2.0:
+                            eq = "bass=g=4.5:f=160,equalizer=f=3000:t=q:w=1.2:g=-2.5"
+                        elif clamped_shift >= 1.5:
+                            eq = "treble=g=2.5:f=3500,equalizer=f=2800:t=q:w=1.0:g=1.5"
+                        else:
+                            eq = "bass=g=1.5:f=180"
+                        return clamped_shift, eq
+    except Exception:
+        pass
+
+    return 0.0, None
+
+
 async def run_synthesis_pipeline(
     text: str,
     voice_id: str = "piper_id_gadis_fast",
@@ -349,7 +408,16 @@ async def run_synthesis_pipeline(
     # Profil akustik hanya diaplikasikan untuk suara legacy Piper yang berbagi satu model fisik:
     if not is_dedicated_real_voice and actual_engine_used == "piper":
         v_lower = voice_id.lower()
-        if "bima" in v_lower:
+        if voice_id.startswith("clone_") or (settings.AUDIO_OUTPUT_DIR / "clones" / f"{voice_id}.wav").exists():
+            # Profil vokal klon otomatis berdasarkan analisis frekuensi vokal audio asli pengguna
+            clone_pitch, clone_eq = get_clone_acoustic_profile(voice_id)
+            if clone_pitch != 0.0 or clone_eq is not None:
+                profile_pitch = clone_pitch
+                profile_eq = clone_eq
+            else:
+                profile_pitch = -4.2
+                profile_eq = "bass=g=3.5:f=170,equalizer=f=3000:t=q:w=1.2:g=-2.0"
+        elif "bima" in v_lower:
             # Bima (Pria Narator): Nada berat berwibawa (-4.8 semitones) + resonansi dada
             profile_pitch = -4.8
             profile_eq = "bass=g=4.5:f=160,equalizer=f=3200:t=q:w=1.2:g=-2.5"
