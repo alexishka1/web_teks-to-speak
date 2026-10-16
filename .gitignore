@@ -27,12 +27,17 @@ backend/storage/*.db
 backend/storage/*.db-journal
 backend/storage/audio/**/*.wav
 backend/storage/audio/**/*.mp3
+backend/storage/audio/**/*.webm
+backend/storage/audio/**/*.ogg
+backend/storage/audio/**/*.m4a
+backend/storage/audio/**/*.flac
 backend/storage/audio/*.wav
 backend/storage/audio/*.mp3
 backend/storage/audio/cache/
 backend/storage/audio/temp/
 backend/storage/audio/clones/
 backend/storage/audio/tests_tahap7/
+backend/tests/test_data/
 scratch/
 *.onnx
 !backend/storage/models/.gitkeep

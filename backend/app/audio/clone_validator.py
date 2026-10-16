@@ -66,6 +66,22 @@ def get_audio_duration(file_path: Path) -> float:
             except Exception:
                 pass
 
+    # 3. Fallback: Parse durasi dari output stderr `ffmpeg -i` (karena ffprobe tidak selalu terinstall di bundle imageio-ffmpeg)
+    if ffmpeg_exe:
+        try:
+            cmd = [ffmpeg_exe, "-i", str(file_path)]
+            res = subprocess.run(
+                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+            )
+            import re
+
+            m = re.search(r"Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)", res.stderr)
+            if m:
+                h, mins, s = float(m.group(1)), float(m.group(2)), float(m.group(3))
+                return h * 3600.0 + mins * 60.0 + s
+        except Exception:
+            pass
+
     return 0.0
 
 

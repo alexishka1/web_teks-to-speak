@@ -146,6 +146,20 @@ async def health_check():
             "File config id_ID-news_tts-medium.onnx.json tidak ditemukan."
         )
 
+    # Evaluasi remote GPU server reachability
+    from app.engines.remote_engine import remote_engine
+
+    remote_configured = bool(settings.REMOTE_ENGINE_URL)
+    remote_reachable = remote_engine.health_check() if remote_configured else False
+
+    # Tentukan engine_mode
+    if settings.DEFAULT_ENGINE == "remote" or (remote_configured and remote_reachable):
+        engine_mode = "remote_gpu"
+    elif settings.ONLINE_ENGINES_ENABLED:
+        engine_mode = "online_hybrid"
+    else:
+        engine_mode = "local_offline"
+
     # Evaluasi engine ketersediaan
     engine_details = {
         "piper": {
@@ -168,9 +182,10 @@ async def health_check():
             "model": settings.GEMINI_MODEL,
         },
         "remote": {
-            "available": bool(settings.REMOTE_ENGINE_URL),
+            "available": remote_reachable,
             "requires_online": True,
-            "endpoint_configured": bool(settings.REMOTE_ENGINE_URL),
+            "endpoint_configured": remote_configured,
+            "reachable": remote_reachable,
         },
     }
     usable_engines = [k for k, v in engine_details.items() if v["available"]]
@@ -179,6 +194,13 @@ async def health_check():
         "status": overall_status,
         "app_name": settings.APP_NAME,
         "version": settings.APP_VERSION,
+        "engine_mode": engine_mode,
+        "remote_gpu_reachable": remote_reachable,
+        "remote_gpu_server": {
+            "configured": remote_configured,
+            "url": settings.REMOTE_ENGINE_URL or None,
+            "reachable": remote_reachable,
+        },
         "hardware": {
             "mode": "cpu_only",
             "target": "Intel Iris / CPU",

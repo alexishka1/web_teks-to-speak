@@ -291,6 +291,18 @@ Setiap entri bug wajib mengikuti struktur berikut:
 - **Perbaikan:** Memasang mock hermetis pada pemanggilan `_test_piper_engine.synthesize` di dalam `test_studio_voice_upload_validation` sehingga uji unit menguji logika upload dan database tanpa membebani runtime engine fisik dengan binary dummy.
 - **Tes Pencegah:** 72 dari 72 test di `backend/tests` lulus 100%.
 
+---
+
+### BUG-024
+- **ID:** BUG-024
+- **Tanggal:** 2026-10-16
+- **Gejala:** Validasi durasi sampel suara kloning (`get_audio_duration`) gagal dan mengembalikan `0.0` pada format audio non-WAV seperti WebM/Opus dari browser saat binary `ffprobe` tidak tersedia.
+- **Langkah Reproduksi:** Unggah rekaman mikrofon WebM dari browser di lingkungan Windows yang hanya memiliki binary `ffmpeg` bawaan `imageio-ffmpeg`.
+- **Akar Masalah:** `get_audio_duration` mengandalkan pustaka standar `wave` (yang hanya memproses WAV PCM) dan `ffprobe` (yang tidak disertakan dalam binary `imageio-ffmpeg`). Ketika berkas bukan WAV dan `ffprobe` absen, fungsi gagal membaca durasi audio.
+- **Perbaikan:** Menambahkan fallback parsing durasi menggunakan output stderr `ffmpeg -i <file_path>` via regex `Duration: hh:mm:ss.xx`, serta memastikan modul `decode_to_temp_wav` selalu mendecode rekaman browser ke format WAV mono 24 kHz sebelum analisis metrik kualitas vokal.
+- **Tes Pencegah:** Seluruh 5 test di `backend/tests/test_voice_clone_advanced.py` lulus 100%.
+
+
 
 
 
